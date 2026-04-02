@@ -1,0 +1,73 @@
+# ─── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+pip-wheel-metadata/
+
+# ─── Virtual environments ─────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+ENV/
+
+# ─── Environment & secrets — NEVER commit real credentials ────────────────────
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# ─── Local / production overrides (if you add them) ───────────────────────────
+*.pem
+*.key
+secrets/
+
+# ─── Database ─────────────────────────────────────────────────────────────────
+*.db
+*.sqlite3
+
+# ─── Alembic ──────────────────────────────────────────────────────────────────
+alembic/versions/*.pyc
+
+# ─── Local AI / agent tooling (not part of the app) ───────────────────────────
+.ai/
+
+# ─── IDE & OS ─────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ─── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ─── Testing & coverage ───────────────────────────────────────────────────────
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.tox/
+.mypy_cache/
+.ruff_cache/
+.pytype/
+
+# ─── Firebase / cloud credentials (paths referenced in config) ────────────────
+firebase_credentials.json
+*-firebase-adminsdk-*.json
+
+# ─── Optional: Postman environment with tokens (uncomment if you store secrets) ─
+postman/*environment*.json
+!postman/*.example.json

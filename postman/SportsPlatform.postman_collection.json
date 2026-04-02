@@ -1,0 +1,1789 @@
+{
+  "info": {
+    "_postman_id": "8f694760-847b-4af6-8f3f-1a2f2c41f4f7",
+    "name": "Sports Platform API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Postman collection for the Sports Platform API."
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "apiBase",
+      "value": "{{baseUrl}}/api/v1"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "refreshToken",
+      "value": ""
+    },
+    {
+      "key": "verifyOtp",
+      "value": ""
+    },
+    {
+      "key": "userId",
+      "value": ""
+    },
+    {
+      "key": "otherUserId",
+      "value": ""
+    },
+    {
+      "key": "matchId",
+      "value": ""
+    },
+    {
+      "key": "notificationId",
+      "value": ""
+    },
+    {
+      "key": "adminUserId",
+      "value": ""
+    },
+    {
+      "key": "reviewId",
+      "value": ""
+    },
+    {
+      "key": "supportRequestId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "auth": {
+          "type": "noauth"
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "health"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Amna Ali\",\n  \"email\": \"amna@example.com\",\n  \"phone_number\": \"+923001112233\",\n  \"password\": \"Password1\",\n  \"confirm_password\": \"Password1\",\n  \"avatar_url\": \"https://example.com/avatar.jpg\",\n  \"accept_terms\": true\n}"
+            },
+            "url": {
+              "raw": "{{apiBase}}/auth/register",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Verify Email",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"amna@example.com\",\n  \"otp\": \"{{verifyOtp}}\"\n}"
+            },
+            "url": {
+              "raw": "{{apiBase}}/auth/verify-email",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "auth",
+                "verify-email"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Resend Verification OTP",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"amna@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{apiBase}}/auth/resend-verification-otp",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "auth",
+                "resend-verification-otp"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const data = pm.response.json();",
+                  "pm.collectionVariables.set('accessToken', data.access_token);",
+                  "pm.collectionVariables.set('refreshToken', data.refresh_token);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"amna@example.com\",\n  \"password\": \"Password1\"\n}"
+            },
+            "url": {
+              "raw": "{{apiBase}}/auth/login",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{apiBase}}/auth/refresh",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "auth",
+                "refresh"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{apiBase}}/auth/logout",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"amna@example.com\"\n}"
+            },
+            "url": {
+              "raw": "{{apiBase}}/auth/forgot-password",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "auth",
+                "forgot-password"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"PASTE_RESET_TOKEN_HERE\",\n  \"new_password\": \"Password2\"\n}"
+            },
+            "url": {
+              "raw": "{{apiBase}}/auth/reset-password",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "auth",
+                "reset-password"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Get My Profile",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const data = pm.response.json();",
+                  "pm.collectionVariables.set('userId', data.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/users/me",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "users",
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update My Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Amna Ali\",\n  \"bio\": \"Cricket and badminton player\",\n  \"location\": \"Lahore\",\n  \"phone_number\": \"+923001112233\",\n  \"avatar_url\": \"https://example.com/avatar2.jpg\",\n  \"sports\": [\n    {\n      \"sport\": \"CRICKET\",\n      \"skill_level\": \"INTERMEDIATE\"\n    },\n    {\n      \"sport\": \"BADMINTON\",\n      \"skill_level\": \"BEGINNER\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{apiBase}}/users/me",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "users",
+                "me"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Upload Avatar Placeholder",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{apiBase}}/users/me/avatar",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "users",
+                "me",
+                "avatar"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get User Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/users/{{userId}}",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "users",
+                "{{userId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get User Stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/users/{{userId}}/stats",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "users",
+                "{{userId}}",
+                "stats"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get User Reviews",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/users/{{userId}}/reviews?page=1&limit=20",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "users",
+                "{{userId}}",
+                "reviews"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Create Review",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"match_id\": \"{{matchId}}\",\n  \"rating\": 5,\n  \"comment\": \"Great player and good teamwork\"\n}"
+            },
+            "url": {
+              "raw": "{{apiBase}}/users/{{otherUserId}}/reviews",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "users",
+                "{{otherUserId}}",
+                "reviews"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Follow User",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/users/{{otherUserId}}/follow",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "users",
+                "{{otherUserId}}",
+                "follow"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Unfollow User",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/users/{{otherUserId}}/follow",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "users",
+                "{{otherUserId}}",
+                "follow"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Followers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/users/{{userId}}/followers?page=1&limit=20",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "users",
+                "{{userId}}",
+                "followers"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Following",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/users/{{userId}}/following?page=1&limit=20",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "users",
+                "{{userId}}",
+                "following"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Matches",
+      "item": [
+        {
+          "name": "Create Match",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const data = pm.response.json();",
+                  "pm.collectionVariables.set('matchId', data.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Evening Cricket\",\n  \"description\": \"Friendly match at 7 PM\",\n  \"sport\": \"CRICKET\",\n  \"facility_address\": \"Model Town Sports Ground, Lahore\",\n  \"scheduled_at\": \"2026-04-02T19:00:00+05:00\",\n  \"duration_minutes\": 90,\n  \"max_players\": 10,\n  \"skill_level\": \"INTERMEDIATE\"\n}"
+            },
+            "url": {
+              "raw": "{{apiBase}}/matches",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "matches"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get My Matches",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/matches/my?page=1&limit=20",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "matches",
+                "my"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Nearby Matches",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/matches/nearby?lat=31.5204&lng=74.3587&radius_km=20&page=1&limit=20",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "matches",
+                "nearby"
+              ],
+              "query": [
+                {
+                  "key": "lat",
+                  "value": "31.5204"
+                },
+                {
+                  "key": "lng",
+                  "value": "74.3587"
+                },
+                {
+                  "key": "radius_km",
+                  "value": "20"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Matches",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/matches?page=1&limit=20",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "matches"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Match Detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/matches/{{matchId}}",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Match",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Evening Cricket Updated\",\n  \"description\": \"Updated friendly match\",\n  \"facility_address\": \"Johar Town Sports Complex, Lahore\",\n  \"scheduled_at\": \"2026-04-03T19:00:00+05:00\",\n  \"duration_minutes\": 120,\n  \"max_players\": 12,\n  \"skill_level\": \"INTERMEDIATE\"\n}"
+            },
+            "url": {
+              "raw": "{{apiBase}}/matches/{{matchId}}",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete Match",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/matches/{{matchId}}",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Join Match",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/matches/{{matchId}}/join",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}",
+                "join"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Leave Match",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/matches/{{matchId}}/leave",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}",
+                "leave"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Match Players",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/matches/{{matchId}}/players?page=1&limit=20",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}",
+                "players"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Remove Player",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/matches/{{matchId}}/players/{{otherUserId}}",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}",
+                "players",
+                "{{otherUserId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Match Status to Ongoing",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ONGOING\"\n}"
+            },
+            "url": {
+              "raw": "{{apiBase}}/matches/{{matchId}}/status",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}",
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Match Status to Completed",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"COMPLETED\"\n}"
+            },
+            "url": {
+              "raw": "{{apiBase}}/matches/{{matchId}}/status",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}",
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Update Match Status to Cancelled",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"CANCELLED\"\n}"
+            },
+            "url": {
+              "raw": "{{apiBase}}/matches/{{matchId}}/status",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}",
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Invite Player",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/matches/{{matchId}}/invite?invited_user_id={{otherUserId}}",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}",
+                "invite"
+              ],
+              "query": [
+                {
+                  "key": "invited_user_id",
+                  "value": "{{otherUserId}}"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Match Messages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/matches/{{matchId}}/messages?page=1&limit=20",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "matches",
+                "{{matchId}}",
+                "messages"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications",
+      "item": [
+        {
+          "name": "Get Notifications",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const data = pm.response.json();",
+                  "if (data.items && data.items.length > 0) {",
+                  "  pm.collectionVariables.set('notificationId', data.items[0].id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/notifications?page=1&limit=20",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "notifications"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mark Notification Read",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/notifications/{{notificationId}}/read",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "notifications",
+                "{{notificationId}}",
+                "read"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Mark All Notifications Read",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/notifications/read-all",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "notifications",
+                "read-all"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/admin/dashboard",
+              "host": [
+                "{{apiBase}}"
+              ],
+              "path": [
+                "admin",
+                "dashboard"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Users",
+          "item": [
+            {
+              "name": "List Users",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const data = pm.response.json();",
+                      "if (data.items && data.items.length > 0) {",
+                      "  pm.collectionVariables.set('adminUserId', data.items[0].id);",
+                      "}",
+                      ""
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{apiBase}}/admin/users?search=&status=Active&sport=&date_from=&date_to=&location=&page=1&limit=20",
+                  "host": [
+                    "{{apiBase}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "users"
+                  ],
+                  "query": [
+                    {
+                      "key": "search",
+                      "value": ""
+                    },
+                    {
+                      "key": "status",
+                      "value": "Active"
+                    },
+                    {
+                      "key": "sport",
+                      "value": ""
+                    },
+                    {
+                      "key": "date_from",
+                      "value": ""
+                    },
+                    {
+                      "key": "date_to",
+                      "value": ""
+                    },
+                    {
+                      "key": "location",
+                      "value": ""
+                    },
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "20"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Create User",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"full_name\": \"New Admin User\",\n  \"email\": \"new-admin-user@example.com\",\n  \"password\": \"Secure123\",\n  \"is_admin\": false\n}"
+                },
+                "url": {
+                  "raw": "{{apiBase}}/admin/users",
+                  "host": [
+                    "{{apiBase}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "users"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get User Detail",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{apiBase}}/admin/users/{{adminUserId}}",
+                  "host": [
+                    "{{apiBase}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "users",
+                    "{{adminUserId}}"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Block Or Unblock User",
+              "request": {
+                "method": "PATCH",
+                "header": [],
+                "url": {
+                  "raw": "{{apiBase}}/admin/users/{{adminUserId}}/block",
+                  "host": [
+                    "{{apiBase}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "users",
+                    "{{adminUserId}}",
+                    "block"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Delete User",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{apiBase}}/admin/users/{{adminUserId}}",
+                  "host": [
+                    "{{apiBase}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "users",
+                    "{{adminUserId}}"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Matches",
+          "item": [
+            {
+              "name": "List Matches",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const data = pm.response.json();",
+                      "if (data.items && data.items.length > 0) {",
+                      "  pm.collectionVariables.set('matchId', data.items[0].id);",
+                      "}",
+                      ""
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{apiBase}}/admin/matches?search=&location=&name=&date_from=&date_to=&page=1&limit=20",
+                  "host": [
+                    "{{apiBase}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "matches"
+                  ],
+                  "query": [
+                    {
+                      "key": "search",
+                      "value": ""
+                    },
+                    {
+                      "key": "location",
+                      "value": ""
+                    },
+                    {
+                      "key": "name",
+                      "value": ""
+                    },
+                    {
+                      "key": "date_from",
+                      "value": ""
+                    },
+                    {
+                      "key": "date_to",
+                      "value": ""
+                    },
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "20"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Match Detail",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{apiBase}}/admin/matches/{{matchId}}",
+                  "host": [
+                    "{{apiBase}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "matches",
+                    "{{matchId}}"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Update Match",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Updated Match Title\",\n  \"description\": \"Updated by admin\",\n  \"facility_address\": \"Updated Sports Complex\",\n  \"scheduled_at\": \"2026-04-10T19:00:00Z\",\n  \"duration_minutes\": 120,\n  \"max_players\": 12,\n  \"skill_level\": \"Intermediate\"\n}"
+                },
+                "url": {
+                  "raw": "{{apiBase}}/admin/matches/{{matchId}}",
+                  "host": [
+                    "{{apiBase}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "matches",
+                    "{{matchId}}"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Delete Match",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{apiBase}}/admin/matches/{{matchId}}",
+                  "host": [
+                    "{{apiBase}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "matches",
+                    "{{matchId}}"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reviews Moderation",
+          "item": [
+            {
+              "name": "List Review Users",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const data = pm.response.json();",
+                      "if (data.items && data.items.length > 0) {",
+                      "  pm.collectionVariables.set('adminUserId', data.items[0].id);",
+                      "}",
+                      ""
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{apiBase}}/admin/reviews/users?search=&page=1&limit=20",
+                  "host": [
+                    "{{apiBase}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "reviews",
+                    "users"
+                  ],
+                  "query": [
+                    {
+                      "key": "search",
+                      "value": ""
+                    },
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "20"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get User Reviews",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const data = pm.response.json();",
+                      "if (data.items && data.items.length > 0) {",
+                      "  pm.collectionVariables.set('reviewId', data.items[0].id);",
+                      "}",
+                      ""
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{apiBase}}/admin/reviews/users/{{adminUserId}}?page=1&limit=20",
+                  "host": [
+                    "{{apiBase}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "reviews",
+                    "users",
+                    "{{adminUserId}}"
+                  ],
+                  "query": [
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "20"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Delete Review",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{apiBase}}/admin/reviews/{{reviewId}}",
+                  "host": [
+                    "{{apiBase}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "reviews",
+                    "{{reviewId}}"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Content Management",
+          "item": [
+            {
+              "name": "Get Terms Of Service",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{apiBase}}/admin/content/terms-of-service",
+                  "host": [
+                    "{{apiBase}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "content",
+                    "terms-of-service"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Update Terms Of Service",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"title\": \"Terms of Service\",\n  \"content\": \"Updated terms of service content for the admin CMS page.\"\n}"
+                },
+                "url": {
+                  "raw": "{{apiBase}}/admin/content/terms-of-service",
+                  "host": [
+                    "{{apiBase}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "content",
+                    "terms-of-service"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Privacy Policy",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{apiBase}}/admin/content/privacy-policy",
+                  "host": [
+                    "{{apiBase}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "content",
+                    "privacy-policy"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Help Support",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{apiBase}}/admin/content/help-support",
+                  "host": [
+                    "{{apiBase}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "content",
+                    "help-support"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Support Requests",
+          "item": [
+            {
+              "name": "List Support Requests",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const data = pm.response.json();",
+                      "if (data.items && data.items.length > 0) {",
+                      "  pm.collectionVariables.set('supportRequestId', data.items[0].id);",
+                      "}",
+                      ""
+                    ],
+                    "type": "text/javascript"
+                  }
+                }
+              ],
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{apiBase}}/admin/support-requests?search=&status=&page=1&limit=20",
+                  "host": [
+                    "{{apiBase}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "support-requests"
+                  ],
+                  "query": [
+                    {
+                      "key": "search",
+                      "value": ""
+                    },
+                    {
+                      "key": "status",
+                      "value": ""
+                    },
+                    {
+                      "key": "page",
+                      "value": "1"
+                    },
+                    {
+                      "key": "limit",
+                      "value": "20"
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Get Support Request Detail",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{apiBase}}/admin/support-requests/{{supportRequestId}}",
+                  "host": [
+                    "{{apiBase}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "support-requests",
+                    "{{supportRequestId}}"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Resolve Support Request",
+              "request": {
+                "method": "PATCH",
+                "header": [],
+                "url": {
+                  "raw": "{{apiBase}}/admin/support-requests/{{supportRequestId}}/resolve",
+                  "host": [
+                    "{{apiBase}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "support-requests",
+                    "{{supportRequestId}}",
+                    "resolve"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Delete Support Request",
+              "request": {
+                "method": "DELETE",
+                "header": [],
+                "url": {
+                  "raw": "{{apiBase}}/admin/support-requests/{{supportRequestId}}",
+                  "host": [
+                    "{{apiBase}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "support-requests",
+                    "{{supportRequestId}}"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Settings",
+          "item": [
+            {
+              "name": "Get Admin Account",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{apiBase}}/admin/account",
+                  "host": [
+                    "{{apiBase}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "account"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Update Admin Account",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"full_name\": \"Admin User\",\n  \"email\": \"admin@sportsplatform.com\",\n  \"phone\": \"+1234567890\"\n}"
+                },
+                "url": {
+                  "raw": "{{apiBase}}/admin/account",
+                  "host": [
+                    "{{apiBase}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "account"
+                  ]
+                }
+              }
+            },
+            {
+              "name": "Change Admin Password",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"current_password\": \"Secure123\",\n  \"new_password\": \"NewSecure456\",\n  \"confirm_new_password\": \"NewSecure456\"\n}"
+                },
+                "url": {
+                  "raw": "{{apiBase}}/admin/account/password",
+                  "host": [
+                    "{{apiBase}}"
+                  ],
+                  "path": [
+                    "admin",
+                    "account",
+                    "password"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
