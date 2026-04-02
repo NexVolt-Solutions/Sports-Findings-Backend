@@ -282,11 +282,49 @@ async def send_player_removed_notification(
 async def send_new_follower_notification(
     follower_id: UUID,
     following_id: UUID,
+    follower_name: str,
 ) -> None:
-    """Notify a user when someone follows them. Phase 5."""
+    """
+    Notify a user when someone follows them.
+
+    Steps:
+    1. Create Notification record (type=NEW_FOLLOWER)
+    2. Push to following user's WebSocket channel via ws_manager
+    3. If following user is offline: send FCM/APNs push (Phase 4)
+    """
     logger.info(
-        f"[TASK] send_new_follower_notification -> follower={follower_id} following={following_id}"
+        f"[TASK] send_new_follower_notification -> "
+        f"follower={follower_id} ({follower_name!r}) following={following_id}"
     )
+    try:
+        from app.database import AsyncSessionLocal
+        from app.models.notification import Notification
+        from app.models.enums import NotificationType
+        from app.websockets.connection_manager import ws_manager
+
+        payload = {
+            "follower_id": str(follower_id),
+            "follower_name": follower_name,
+            "message": f"{follower_name} started following you.",
+        }
+
+        async with AsyncSessionLocal() as db:
+            notif = Notification(
+                user_id=following_id,
+                type=NotificationType.NEW_FOLLOWER,
+                payload=payload,
+            )
+            db.add(notif)
+            await db.commit()
+
+        await ws_manager.send_to_user(str(following_id), {
+            "type": "notification",
+            "notification_type": NotificationType.NEW_FOLLOWER.value,
+            "payload": payload,
+        })
+
+    except Exception as e:
+        logger.error(f"[TASK] send_new_follower_notification failed: {e}")
 
 
 async def update_games_played(player_ids: list[UUID]) -> None:

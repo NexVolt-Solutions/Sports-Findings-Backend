@@ -1,0 +1,88 @@
+# Version Control
+.git
+.gitignore
+.gitattributes
+
+# Environment files
+.env
+.env.*
+!.env.example
+!.env.production
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE & Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+.project
+.pydevproject
+
+# Documentation
+docs/
+*.md
+README.md
+
+# Testing
+tests/
+pytest.ini
+.pytest_cache/
+
+# Development files
+.env.local
+.env.test.local
+.env.production.local
+local_settings.py
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Nginx
+nginx.conf
+*.log
+
+# Postman
+postman/
+
+# Scripts
+scripts/
+
+# Docker
+Dockerfile
+docker-compose.yml
+docker-compose.*.yml
+
+# Miscellaneous
+.idea
+.vscode
+*.sqlite
+*.sqlite3
+node_modules/

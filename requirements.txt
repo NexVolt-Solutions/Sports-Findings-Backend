@@ -1,6 +1,7 @@
 # ─── Web Framework ────────────────────────────────────────────────────────────
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
+gunicorn==23.0.0
 
 # ─── Database ─────────────────────────────────────────────────────────────────
 sqlalchemy==2.0.36
@@ -19,6 +20,9 @@ email-validator==2.2.0
 
 # ─── Async HTTP (Google OAuth, Google Maps) ───────────────────────────────────
 httpx==0.27.2
+
+# ─── Caching & Session Management (Production) ────────────────────────────────
+redis==5.0.1
 
 # ─── Rate Limiting ────────────────────────────────────────────────────────────
 slowapi==0.1.9
