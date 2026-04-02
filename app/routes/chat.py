@@ -1,6 +1,9 @@
 import uuid
 import json
 import logging
+import time
+from collections import defaultdict, deque
+import asyncio
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, Depends, BackgroundTasks
@@ -18,6 +21,27 @@ from app.websockets.connection_manager import ws_manager
 from app.background.tasks import persist_chat_message
 
 logger = logging.getLogger(__name__)
+
+# ─── WebSocket abuse protection ────────────────────────────────────────────
+# In-memory sliding-window rate limit per user.
+_chat_rate_lock = asyncio.Lock()
+_chat_user_message_times: dict[str, deque[float]] = defaultdict(deque)
+_CHAT_MAX_MESSAGES = 10
+_CHAT_WINDOW_SECONDS = 5.0
+
+
+async def _allow_chat_message(user_id: str) -> bool:
+    now = time.time()
+    cutoff = now - _CHAT_WINDOW_SECONDS
+
+    async with _chat_rate_lock:
+        q = _chat_user_message_times[user_id]
+        while q and q[0] < cutoff:
+            q.popleft()
+        if len(q) >= _CHAT_MAX_MESSAGES:
+            return False
+        q.append(now)
+        return True
 
 # REST router — registered under /api/v1 in main.py
 router = APIRouter(tags=["Chat"])
@@ -53,7 +77,7 @@ async def get_match_messages(
 async def match_chat_websocket(
     match_id: uuid.UUID,
     websocket: WebSocket,
-    token: str = Query(..., description="JWT access token"),
+    token: str | None = Query(None, description="JWT access token (fallback; prefer Authorization header)"),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -63,7 +87,8 @@ async def match_chat_websocket(
         wss://api.sportsplatform.com/ws/matches/{match_id}/chat?token=<JWT>
 
     Authentication:
-        JWT access token passed as query param ?token=<JWT>
+        Preferred: `Authorization: Bearer <JWT>` header.
+        Fallback: `?token=<JWT>` query param (legacy/compat).
         Only active match participants can connect.
 
     Inbound message format (client → server):
@@ -91,12 +116,24 @@ async def match_chat_websocket(
     """
     # ── Step 1: Authenticate ──────────────────────────────────────────────────
     try:
-        user = await get_ws_user(token, db)
+        # Prefer Authorization header, keep ?token= as compatibility fallback.
+        auth_header = websocket.headers.get("Authorization")
+        if auth_header and auth_header.lower().startswith("bearer "):
+            token_value = auth_header.split(" ", 1)[1].strip()
+        else:
+            token_value = token
+
+        if not token_value:
+            await websocket.close(code=4001, reason="Unauthorized")
+            return
+
+        user = await get_ws_user(token_value, db)
     except Exception:
         await websocket.close(code=4001, reason="Unauthorized")
         return
 
     room_id = str(match_id)
+    user_id_key = str(user.id)
 
     # ── Step 2: Verify participant ────────────────────────────────────────────
     try:
@@ -158,6 +195,14 @@ async def match_chat_websocket(
                 }))
                 continue
 
+            # Rate-limit inbound messages per user to reduce abuse/spam.
+            if not await _allow_chat_message(user_id_key):
+                await websocket.send_text(json.dumps({
+                    "type": "error",
+                    "detail": "Rate limit exceeded. Please slow down.",
+                }))
+                continue
+
             sent_at = datetime.now(timezone.utc)
 
             # Build outbound broadcast payload
@@ -175,7 +220,6 @@ async def match_chat_websocket(
 
             # Persist message to DB asynchronously (non-blocking)
             # The broadcast happens first — persistence is best-effort
-            import asyncio
             asyncio.create_task(
                 persist_chat_message(
                     match_id=match_id,
@@ -188,6 +232,8 @@ async def match_chat_websocket(
     except WebSocketDisconnect:
         await ws_manager.disconnect_from_match(room_id, websocket)
         logger.info(f"User {user.id} disconnected from chat room {room_id}")
+        _chat_user_message_times.pop(user_id_key, None)
     except Exception as e:
         logger.error(f"WebSocket error in match chat {room_id}: {e}")
         await ws_manager.disconnect_from_match(room_id, websocket)
+        _chat_user_message_times.pop(user_id_key, None)

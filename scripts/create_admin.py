@@ -82,12 +82,30 @@ async def create_admin(email: str, full_name: str, password: str) -> None:
     from app.models.enums import UserStatus
     from app.utils.security import hash_password
 
+    email = normalize_email(email)
+    full_name = full_name.strip()
+
+    # Keep in sync with `app/models/user.py` SQLAlchemy model.
+    if not (2 <= len(full_name) <= 100):
+        raise ValueError("Full name must be between 2 and 100 characters.")
+
     async with AsyncSessionLocal() as db:
 
         try:
-            existing_admin = (await db.execute(
-                select(User).where(User.is_admin.is_(True))
-            )).scalar_one_or_none()
+            # If there are multiple admins in the DB, fail loudly to avoid
+            # silently changing state and leaving the system inconsistent.
+            existing_admins = (
+                await db.execute(select(User).where(User.is_admin.is_(True)))
+            ).scalars().all()
+
+            if len(existing_admins) > 1:
+                admin_emails = [u.email for u in existing_admins if u.email]
+                raise RuntimeError(
+                    "Multiple admin accounts exist in the database. "
+                    f"Admins: {admin_emails}"
+                )
+
+            existing_admin = existing_admins[0] if existing_admins else None
 
             # Check if email already exists
             result = await db.execute(select(User).where(User.email == email))
@@ -111,6 +129,10 @@ async def create_admin(email: str, full_name: str, password: str) -> None:
                 existing.status = UserStatus.ACTIVE
                 existing.full_name = full_name
                 existing.hashed_password = hash_password(password)
+                # Clear verification OTP fields since admin accounts are
+                # treated as ACTIVE and should not retain OTP secrets.
+                existing.email_verification_otp = None
+                existing.email_verification_otp_expires_at = None
 
                 await db.commit()
 
@@ -202,10 +224,26 @@ Examples:
     if not full_name or len(full_name) < 2:
         logger.error("Full name must be at least 2 characters.")
         sys.exit(1)
+    if len(full_name) > 100:
+        logger.error("Full name must be at most 100 characters.")
+        sys.exit(1)
 
     # --------------------------------------------------
     # Password
     # --------------------------------------------------
+    # Refuse passing passwords via CLI by default to avoid leaking secrets
+    # through shell history and process listings. Opt-in via env var.
+    allow_password_arg = os.getenv("ALLOW_PASSWORD_ARG", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+    if args.password is not None and not allow_password_arg:
+        logger.error(
+            "Refusing to accept --password via command line. "
+            "Use an interactive prompt instead, or set ALLOW_PASSWORD_ARG=1."
+        )
+        sys.exit(1)
 
     password = args.password if args.password is not None else prompt_input("Password", secret=True)
 
