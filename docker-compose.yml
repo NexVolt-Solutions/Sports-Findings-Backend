@@ -2,31 +2,120 @@ version: "3.9"
 
 services:
   api:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sports-platform-api
     ports:
       - "8000:8000"
     env_file:
       - .env.production
+    environment:
+      # Override with compose-specific settings
+      DATABASE_URL: postgresql+asyncpg://postgres:${DB_PASSWORD}@db:5432/sports_platform
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     restart: unless-stopped
+    # Resource limits to prevent container from consuming all system resources
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Health check for Kubernetes/orchestration
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - sports-network
 
   db:
-    image: postgres:15
+    image: postgres:15-alpine
+    container_name: sports-platform-db
     environment:
       POSTGRES_DB: sports_platform
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${DB_PASSWORD}
+      # Performance tuning
+      POSTGRES_INITDB_ARGS: "-c max_connections=200 -c shared_buffers=256MB"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # Optional: database initialization script
+      # - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 1G
+        reservations:
+          cpus: '1'
+          memory: 512M
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U postgres -d sports_platform"]
+      interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - sports-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: sports-platform-redis
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_password}
+    volumes:
+      - redis_data:/data
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - sports-network
 
 volumes:
   postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  sports-network:
+    driver: bridge
 
