@@ -1,7 +1,10 @@
 import uuid
 import json
 import logging
+import time
+from collections import defaultdict, deque
 
+import asyncio
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +18,35 @@ from app.services import notification_service
 from app.websockets.connection_manager import ws_manager
 
 logger = logging.getLogger(__name__)
+
+# ─── WebSocket abuse protection ────────────────────────────────────────────
+# In-memory sliding-window rate limit per user.
+_notif_rate_lock = asyncio.Lock()
+_notif_user_message_times: dict[str, deque[float]] = defaultdict(deque)
+_NOTIF_MAX_MESSAGES = 10
+_NOTIF_WINDOW_SECONDS = 5.0
+
+
+async def _allow_notification_message(user_id: str) -> bool:
+    now = time.time()
+    cutoff = now - _NOTIF_WINDOW_SECONDS
+
+    async with _notif_rate_lock:
+        q = _notif_user_message_times[user_id]
+        while q and q[0] < cutoff:
+            q.popleft()
+        if len(q) >= _NOTIF_MAX_MESSAGES:
+            return False
+        q.append(now)
+        return True
+
+
+def _extract_ws_token(websocket: WebSocket, token_query_param: str) -> str:
+    """Extract JWT token from Authorization header or fallback query param."""
+    auth_header = websocket.headers.get("Authorization")
+    if auth_header and auth_header.lower().startswith("bearer "):
+        return auth_header.split(" ", 1)[1].strip()
+    return token_query_param
 
 # REST router — registered under /api/v1 in main.py
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
@@ -69,7 +101,7 @@ async def mark_all_notifications_read(
 @ws_router.websocket("/ws/notifications")
 async def notification_websocket(
     websocket: WebSocket,
-    token: str = Query(..., description="JWT access token"),
+    token: str = Query(..., description="JWT access token (fallback; prefer Authorization header)"),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -80,6 +112,10 @@ async def notification_websocket(
 
     On connect: server sends pending unread count.
     Notifications are pushed server-side — client just keeps the connection alive.
+
+    Authentication:
+        Preferred: `Authorization: Bearer <JWT>` header.
+        Fallback: `?token=<JWT>` query param (legacy/compat).
 
     Inbound (client → server):
         { "type": "ping" }   — keepalive ping
@@ -102,7 +138,8 @@ async def notification_websocket(
     """
     # ── Authenticate ──────────────────────────────────────────────────────────
     try:
-        user = await get_ws_user(token, db)
+        token_value = _extract_ws_token(websocket, token)
+        user = await get_ws_user(token_value, db)
     except Exception:
         await websocket.close(code=4001, reason="Unauthorized")
         return
@@ -130,6 +167,12 @@ async def notification_websocket(
             try:
                 data = json.loads(raw)
                 if data.get("type") == "ping":
+                    if not await _allow_notification_message(user_id):
+                        await websocket.send_text(json.dumps({
+                            "type": "error",
+                            "detail": "Rate limit exceeded. Please slow down.",
+                        }))
+                        continue
                     await websocket.send_text(json.dumps({"type": "pong"}))
             except (json.JSONDecodeError, Exception):
                 pass  # Ignore malformed keepalive messages
@@ -137,6 +180,8 @@ async def notification_websocket(
     except WebSocketDisconnect:
         await ws_manager.disconnect_user(user_id, websocket)
         logger.info(f"User {user.id} disconnected from notification stream")
+        _notif_user_message_times.pop(user_id, None)
     except Exception as e:
         logger.error(f"Notification WebSocket error for user {user.id}: {e}")
         await ws_manager.disconnect_user(user_id, websocket)
+        _notif_user_message_times.pop(user_id, None)

@@ -127,6 +127,37 @@ async def _count_active_players(match_id: uuid.UUID, db: AsyncSession) -> int:
     return result.scalar_one()
 
 
+async def _count_active_players_for_match_ids(
+    match_ids: list[uuid.UUID],
+    db: AsyncSession,
+) -> dict[uuid.UUID, int]:
+    """
+    Batch-count active players for many matches at once.
+
+    This avoids the N+1 query pattern where we previously counted per match
+    inside list loops.
+    """
+    if not match_ids:
+        return {}
+
+    result = await db.execute(
+        select(MatchPlayer.match_id, func.count())
+        .where(
+            and_(
+                MatchPlayer.match_id.in_(match_ids),
+                MatchPlayer.status == MatchPlayerStatus.ACTIVE,
+            )
+        )
+        .group_by(MatchPlayer.match_id)
+    )
+
+    # result rows are tuples: (match_id, count)
+    counts: dict[uuid.UUID, int] = {}
+    for match_id, cnt in result.all():
+        counts[match_id] = int(cnt)
+    return counts
+
+
 def _build_match_detail(match: Match, current_players: int) -> MatchDetailResponse:
     """Builds a MatchDetailResponse from a Match ORM object."""
     return MatchDetailResponse(
@@ -273,9 +304,12 @@ async def list_matches(
     paginated = await paginate(db, query, pagination)
 
     # Build summary responses with current player counts
+    match_ids = [m.id for m in paginated.items]
+    active_counts = await _count_active_players_for_match_ids(match_ids, db)
+
     items = []
     for match in paginated.items:
-        count = await _count_active_players(match.id, db)
+        count = active_counts.get(match.id, 0)
         items.append(MatchSummaryResponse(
             id=match.id,
             title=match.title,
@@ -328,9 +362,12 @@ async def get_my_matches(
 
     paginated = await paginate(db, query, pagination)
 
+    match_ids = [m.id for m in paginated.items]
+    active_counts = await _count_active_players_for_match_ids(match_ids, db)
+
     items = []
     for match in paginated.items:
-        count = await _count_active_players(match.id, db)
+        count = active_counts.get(match.id, 0)
         items.append(MatchSummaryResponse(
             id=match.id,
             title=match.title,
@@ -884,9 +921,12 @@ async def get_nearby_matches(
     page_items = matches_with_distance[start:end]
 
     # ── Build response items with player counts ───────────────────────────────
+    page_match_ids = [match.id for match, _ in page_items]
+    active_counts = await _count_active_players_for_match_ids(page_match_ids, db)
+
     items = []
     for match, distance_km in page_items:
-        count = await _count_active_players(match.id, db)
+        count = active_counts.get(match.id, 0)
         items.append(
             MatchSummaryResponse(
                 id=match.id,

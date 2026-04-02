@@ -40,7 +40,8 @@ class Base(DeclarativeBase):
 async def get_db() -> AsyncSession:
     """
     FastAPI dependency that provides an async DB session per request.
-    Automatically commits on success and rolls back on exception.
+    Rolls back on exception. Commit ownership is intentionally left to the
+    service layer to keep transaction boundaries explicit and consistent.
 
     Usage in routes:
         async def my_route(db: AsyncSession = Depends(get_db)):
@@ -48,7 +49,6 @@ async def get_db() -> AsyncSession:
     async with AsyncSessionLocal() as session:
         try:
             yield session
-            await session.commit()
         except Exception:
             await session.rollback()
             raise

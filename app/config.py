@@ -57,6 +57,11 @@ class Settings(BaseSettings):
     default_page_size: int = 20
     max_page_size: int = 100
 
+    # ─── Security / Logging ───────────────────────────────────────────────────
+    # When enabled, some background tasks may log sensitive values like OTPs or
+    # password reset URLs. This must never be enabled in production.
+    allow_secret_logging: bool = False
+
 
 @lru_cache()
 def get_settings() -> Settings:

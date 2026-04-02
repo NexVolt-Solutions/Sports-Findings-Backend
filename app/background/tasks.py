@@ -66,7 +66,9 @@ async def send_verification_email(user_id: UUID, email: str, otp: str) -> None:
             f"[TASK] send_verification_email failed for user={user_id} email={email}: {e}"
         )
     finally:
-        if settings.debug:
+        # Never log OTPs in normal operation. If you absolutely need it for local
+        # troubleshooting, enable allow_secret_logging explicitly.
+        if settings.allow_secret_logging:
             logger.info(f"[DEV] verification_otp={otp}")
 
 
@@ -102,7 +104,8 @@ async def send_password_reset_email(user_id: UUID, email: str, token: str) -> No
             f"[TASK] send_password_reset_email failed for user={user_id} email={email}: {e}"
         )
     finally:
-        if settings.debug:
+        # Never log password reset URLs in normal operation.
+        if settings.allow_secret_logging:
             logger.info(f"[DEV] reset_url={reset_url}")
 
 
