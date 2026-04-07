@@ -112,7 +112,7 @@ async def send_password_reset_email(user_id: UUID, email: str, token: str) -> No
 async def geocode_match_address(match_id: UUID, address: str) -> None:
     """
     Geocode a match facility address using Google Maps Geocoding API.
-    Updates match.latitude, match.longitude, match.location_name in DB.
+    Updates match.latitude, match.longitude in DB.
 
     Called as a background task after match creation or address update.
     Never raises - logs warning on failure so the match is not affected.
@@ -120,7 +120,7 @@ async def geocode_match_address(match_id: UUID, address: str) -> None:
     logger.info(f"[TASK] geocode_match_address -> match={match_id} address={address!r}")
 
     try:
-        from app.utils.geocoding import geocode_address
+        from app.utils.google_maps import geocode_address
         from app.database import AsyncSessionLocal
         from app.models.match import Match
         from sqlalchemy import select
@@ -138,13 +138,12 @@ async def geocode_match_address(match_id: UUID, address: str) -> None:
             match_result = await db.execute(select(Match).where(Match.id == match_id))
             match = match_result.scalar_one_or_none()
             if match:
-                match.latitude = result.latitude
-                match.longitude = result.longitude
-                match.location_name = result.formatted_address
+                match.latitude = result["latitude"]
+                match.longitude = result["longitude"]
                 await db.commit()
                 logger.info(
                     f"[TASK] geocode_match_address: match={match_id} "
-                    f"-> ({result.latitude}, {result.longitude}) '{result.formatted_address}'"
+                    f"-> ({result['latitude']}, {result['longitude']})"
                 )
 
     except Exception as e:

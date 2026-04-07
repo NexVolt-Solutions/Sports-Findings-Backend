@@ -12,7 +12,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.config import settings
 from app.database import engine
 from app.middleware import RequestLoggingMiddleware, SecurityHeadersMiddleware
-from app.routes import auth, users, matches, notifications, chat, admin
+from app.routes import auth, users, matches, notifications, chat, admin, places, options
 
 # ─── Logging Setup ────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -114,6 +114,8 @@ app.include_router(matches.router,       prefix=API_PREFIX)
 app.include_router(notifications.router, prefix=API_PREFIX)   # REST: /api/v1/notifications/*
 app.include_router(admin.router,         prefix=API_PREFIX)
 app.include_router(chat.router,          prefix=API_PREFIX)   # REST: GET /api/v1/matches/{id}/messages
+app.include_router(places.router,        prefix=API_PREFIX)   # REST: /api/v1/places/*
+app.include_router(options.router,       prefix=API_PREFIX)   # REST: /api/v1/options/*
 
 
 # ─── WebSocket Routers (no /api/v1 prefix) ───────────────────────────────────
