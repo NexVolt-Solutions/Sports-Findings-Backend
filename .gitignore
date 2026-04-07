@@ -71,3 +71,47 @@ firebase_credentials.json
 # ─── Optional: Postman environment with tokens (uncomment if you store secrets) ─
 postman/*environment*.json
 !postman/*.example.json
+
+# ─── AWS Deployment Guidance (Internal documentation, not for GitHub) ──────────
+AWS_DEPLOYMENT_GUIDE.md
+AWS_DEPLOYMENT_CHECKLIST.md
+AWS_CONFIG_BEST_PRACTICES.md
+AWS_DEPLOYMENT_SUMMARY.md
+AWS_COST_ESTIMATION.md
+AWS_DEPLOYMENT_COST_VERIFIED.md
+AWS_DEPLOYMENT_IMPLEMENTATION_READY.md
+AWS_DESIGN_COMPARISON.md
+CLIENT_REQUIREMENTS_VERIFIED.md
+DEPLOYMENT_SCHEDULE.md
+DOCUMENTATION_INDEX_AWS.md
+EC2_DEPLOYMENT_STEPS.md
+SCALING_ROADMAP.md
+ecs-task-definition.json
+.env.aws
+scripts/deploy-to-aws.sh
+
+# ─── Google Maps Integration Docs (Internal reference) ───────────────────────
+GOOGLE_MAPS_EXECUTIVE_SUMMARY.md
+GOOGLE_MAPS_BACKEND_SUMMARY.md
+GOOGLE_MAPS_INTEGRATION.md
+GOOGLE_MAPS_QUICK_REFERENCE.md
+README_GOOGLE_MAPS_COMPLETE.md
+
+# ─── Docker & Implementation Docs (Internal reference) ──────────────────────
+DOCKER_IMPROVEMENTS_SUMMARY.md
+DOCKER_QUICK_REFERENCE.md
+DOCKER_REVIEW.md
+DOCKER_REVIEW_EXECUTIVE_SUMMARY.txt
+DOCKER_SETUP.md
+DOCKER_FILES_GUIDE.txt
+
+# ─── Feature & Implementation Checklists (Internal tracking) ────────────────
+FEATURE_LOCATIONS_IN_APP.md
+IMPLEMENTATION_CHECKLIST.md
+IMPLEMENTATION_SUMMARY.txt
+DEPLOYMENT_CHECKLIST.md
+DOCUMENTATION_INDEX.md
+
+# ─── Test & validation scripts (Development only) ──────────────────────────
+test_imports.py
+validate_google_maps.py

@@ -31,6 +31,11 @@ class Settings(BaseSettings):
 
     # ─── Google Maps ──────────────────────────────────────────────────────────
     google_maps_api_key: str = ""
+    geocoding_api_enabled: bool = True
+    places_api_enabled: bool = True
+    directions_api_enabled: bool = True
+    places_search_radius: int = 5000  # meters (5km)
+    directions_api_mode: str = "driving"  # driving, walking, transit
 
     # ─── Email ────────────────────────────────────────────────────────────────
     mail_username: str = ""
