@@ -61,19 +61,10 @@ async def register_user(
     result = await db.execute(select(User).where(User.email == payload.email))
     existing = result.scalar_one_or_none()
 
-    phone_result = await db.execute(
-        select(User).where(User.phone_number == payload.phone_number)
-    )
-    existing_phone_user = phone_result.scalar_one_or_none()
-
     if existing:
         if existing.status == UserStatus.PENDING_VERIFICATION:
-            if existing_phone_user and existing_phone_user.id != existing.id:
-                raise bad_request("Phone number is already registered")
-
             verification_otp, otp_expires_at = _generate_email_otp()
             existing.full_name = payload.full_name.strip()
-            existing.phone_number = payload.phone_number
             existing.avatar_url = payload.avatar_url
             existing.hashed_password = hash_password(payload.password)
             existing.terms_accepted_at = datetime.now(timezone.utc)
@@ -95,18 +86,13 @@ async def register_user(
 
         raise EmailAlreadyRegistered()
 
-    if existing_phone_user:
-        raise bad_request("Phone number is already registered")
-
     hashed = hash_password(payload.password)
-
     verification_otp, otp_expires_at = _generate_email_otp()
 
     user = User(
         email=payload.email,
         hashed_password=hashed,
         full_name=payload.full_name.strip(),
-        phone_number=payload.phone_number,
         avatar_url=payload.avatar_url,
         status=UserStatus.PENDING_VERIFICATION,
         terms_accepted_at=datetime.now(timezone.utc),
@@ -343,7 +329,9 @@ async def forgot_password(
     if not user or user.status == UserStatus.BLOCKED or not user.hashed_password:
         return generic_message
 
-    reset_token = _create_email_token(str(user.id), token_type="reset", expire_minutes=15)
+    reset_token = _create_email_token(
+        str(user.id), token_type="reset", expire_minutes=15
+    )
 
     background_tasks.add_task(
         send_password_reset_email,
@@ -430,3 +418,5 @@ async def _verify_google_token(id_token: str) -> dict:
     except httpx.HTTPError as e:
         logger.error(f"Google token verification HTTP error: {e}")
         raise external_service_error("Google authentication")
+        
+        

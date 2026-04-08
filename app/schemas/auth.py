@@ -5,7 +5,6 @@ import re
 class RegisterRequest(BaseModel):
     full_name: str
     email: EmailStr
-    phone_number: str
     password: str
     confirm_password: str
     avatar_url: str | None = None
@@ -29,15 +28,6 @@ class RegisterRequest(BaseModel):
         if len(v) < 2:
             raise ValueError("Full name must be at least 2 characters")
         return v
-
-    @field_validator("phone_number")
-    @classmethod
-    def validate_phone_number(cls, v: str) -> str:
-        normalized = re.sub(r"[^\d+]", "", v.strip())
-        digit_count = len(re.sub(r"\D", "", normalized))
-        if digit_count < 7 or digit_count > 15:
-            raise ValueError("Phone number must contain between 7 and 15 digits")
-        return normalized
 
     @model_validator(mode="after")
     def validate_confirmation(self) -> "RegisterRequest":
@@ -104,3 +94,5 @@ class ResetPasswordRequest(BaseModel):
         if not re.search(r"\d", v):
             raise ValueError("Password must contain at least one number")
         return v
+        
+        

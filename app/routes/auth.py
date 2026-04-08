@@ -1,5 +1,7 @@
-from fastapi import APIRouter, Depends, BackgroundTasks
+from fastapi import APIRouter, Depends, BackgroundTasks, Form, UploadFile, File, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Optional
+import re
 
 from app.database import get_db
 from app.schemas.auth import (
@@ -21,14 +23,75 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 @router.post("/register", response_model=MessageResponse, status_code=201)
 async def register(
-    payload: RegisterRequest,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
+    full_name: str = Form(...),
+    email: str = Form(...),
+    password: str = Form(...),
+    confirm_password: str = Form(...),
+    accept_terms: bool = Form(...),
+    avatar: Optional[UploadFile] = File(None),
 ):
     """
-    Register a new user with email and password.
+    Register a new user with multipart/form-data.
+    Optionally accepts an avatar image file.
     Sends a verification email as a background task.
     """
+    # ─── Validate full_name ───────────────────────────────────────
+    full_name = full_name.strip()
+    if len(full_name) < 2:
+        raise HTTPException(
+            status_code=422,
+            detail="Full name must be at least 2 characters"
+        )
+
+    # ─── Validate password ────────────────────────────────────────
+    if len(password) < 8:
+        raise HTTPException(
+            status_code=422,
+            detail="Password must be at least 8 characters long"
+        )
+    if not re.search(r"[A-Z]", password):
+        raise HTTPException(
+            status_code=422,
+            detail="Password must contain at least one uppercase letter"
+        )
+    if not re.search(r"\d", password):
+        raise HTTPException(
+            status_code=422,
+            detail="Password must contain at least one number"
+        )
+
+    # ─── Validate confirm_password ────────────────────────────────
+    if password != confirm_password:
+        raise HTTPException(
+            status_code=422,
+            detail="Password and confirm password must match"
+        )
+
+    # ─── Validate accept_terms ────────────────────────────────────
+    if not accept_terms:
+        raise HTTPException(
+            status_code=422,
+            detail="You must accept the Terms of Service and Privacy Policy"
+        )
+
+    # ─── Upload avatar to S3 if provided ──────────────────────────
+    avatar_url = None
+    if avatar and avatar.filename:
+        from app.utils.s3 import upload_avatar_to_s3
+        avatar_url = await upload_avatar_to_s3("registration", avatar)
+
+    # ─── Build payload and register ───────────────────────────────
+    payload = RegisterRequest(
+        full_name=full_name,
+        email=email,
+        password=password,
+        confirm_password=confirm_password,
+        accept_terms=accept_terms,
+        avatar_url=avatar_url,
+    )
+
     return await auth_service.register_user(payload, db, background_tasks)
 
 
@@ -93,7 +156,9 @@ async def resend_verification_otp(
     db: AsyncSession = Depends(get_db),
 ):
     """Resend a fresh 6-digit email verification OTP."""
-    return await auth_service.resend_verification_otp(payload.email, db, background_tasks)
+    return await auth_service.resend_verification_otp(
+        payload.email, db, background_tasks
+    )
 
 
 @router.post("/forgot-password", response_model=MessageResponse)
@@ -116,3 +181,5 @@ async def reset_password(
 ):
     """Reset the user's password using a valid reset token."""
     return await auth_service.reset_password(payload.token, payload.new_password, db)
+    
+    
