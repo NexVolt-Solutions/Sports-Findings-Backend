@@ -1,4 +1,6 @@
 import uuid
+from typing import Literal
+
 from fastapi import APIRouter, Depends, Query, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,62 +33,40 @@ async def create_match(
     """
     Create a new match.
     - Creator is automatically added as host and participant.
-    - Address is geocoded asynchronously in the background.
+    - Frontend-provided coordinates are stored directly when available.
+    - Address is geocoded asynchronously only when coordinates are missing.
     - Match immediately appears in host's My Matches.
     """
     return await match_service.create_match(payload, current_user, db, background_tasks)
 
 
-@router.get("/my", response_model=PaginatedResponse[MatchSummaryResponse])
-async def get_my_matches(
-    pagination: PaginationParams = Depends(),
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Get all matches the current user is participating in.
-    Includes matches where the user is host or player. Sorted newest first.
-    """
-    return await match_service.get_my_matches(current_user, pagination, db)
-
-
-@router.get("/nearby", response_model=PaginatedResponse[MatchSummaryResponse])
-async def get_nearby_matches(
-    lat: float = Query(..., description="User's current latitude"),
-    lng: float = Query(..., description="User's current longitude"),
-    radius_km: int = Query(default=20, ge=1, le=100),
-    sport: SportType | None = Query(default=None),
-    skill_level: SkillLevel | None = Query(default=None),
-    date_from: str | None = Query(default=None, description="ISO 8601 date"),
-    date_to: str | None = Query(default=None, description="ISO 8601 date"),
-    pagination: PaginationParams = Depends(),
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """
-    Discover nearby matches with filters.
-    Defaults: radius=20km, all sports, any skill, all upcoming matches.
-    Implemented in Phase 3.
-    """
-    return await match_service.get_nearby_matches(
-        lat, lng, radius_km, sport, skill_level,
-        date_from, date_to, pagination, db,
-    )
-
-
 @router.get("", response_model=PaginatedResponse[MatchSummaryResponse])
 async def list_matches(
+    type: Literal["all", "my", "nearby"] = Query(default="all"),
     sport: SportType | None = Query(default=None),
     skill_level: SkillLevel | None = Query(default=None),
     date_from: str | None = Query(default=None),
     date_to: str | None = Query(default=None),
+    lat: float | None = Query(default=None, description="User's current latitude"),
+    lng: float | None = Query(default=None, description="User's current longitude"),
+    radius_km: int = Query(default=20, ge=1, le=100),
     pagination: PaginationParams = Depends(),
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List upcoming open/full matches with optional filters."""
-    return await match_service.list_matches(
-        sport, skill_level, date_from, date_to, pagination, db
+    """List matches using a single endpoint. Use `type=my` or `type=nearby` for specialized views."""
+    return await match_service.list_matches_by_type(
+        list_type=type,
+        current_user=current_user,
+        sport=sport,
+        skill_level=skill_level,
+        date_from=date_from,
+        date_to=date_to,
+        lat=lat,
+        lng=lng,
+        radius_km=radius_km,
+        pagination=pagination,
+        db=db,
     )
 
 

@@ -1,24 +1,87 @@
 import uuid
 import logging
+from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
 
 from app.models.user import User, UserSport
+from app.models.enums import UserStatus
 from app.models.follow import Follow
 from app.models.review import Review
 from app.schemas.user import (
     UserResponse,
     UserProfileResponse,
+    UserListItemResponse,
     UserSportResponse,
     UpdateProfileRequest,
-    UserStatsResponse,
 )
 from app.schemas.review import ReviewResponse
 from app.utils.exceptions import UserNotFound, conflict, bad_request
 from app.utils.pagination import PaginationParams, PaginatedResponse, paginate
+from app.utils.uploads import save_avatar_upload
 
 logger = logging.getLogger(__name__)
+
+
+async def list_users(
+    current_user: User,
+    pagination: PaginationParams,
+    db: AsyncSession,
+    search: str | None = None,
+) -> PaginatedResponse:
+    """
+    Return a paginated list of public user cards for the frontend.
+
+    Excludes:
+    - the authenticated user
+    - admin accounts
+    - non-active accounts
+    """
+    query = (
+        select(User)
+        .options(selectinload(User.sports))
+        .where(User.id != current_user.id)
+        .where(User.is_admin.is_(False))
+        .where(User.status == UserStatus.ACTIVE)
+        .order_by(User.created_at.desc())
+    )
+
+    if search:
+        normalized_search = f"%{search.strip()}%"
+        query = query.where(
+            (User.full_name.ilike(normalized_search)) |
+            (User.location.ilike(normalized_search))
+        )
+
+    paginated = await paginate(db, query, pagination)
+
+    user_ids = [user.id for user in paginated.items]
+    followed_ids: set[uuid.UUID] = set()
+    if user_ids:
+        followed_result = await db.execute(
+            select(Follow.following_id).where(
+                Follow.follower_id == current_user.id,
+                Follow.following_id.in_(user_ids),
+            )
+        )
+        followed_ids = set(followed_result.scalars().all())
+
+    paginated.items = [
+        UserListItemResponse(
+            id=user.id,
+            full_name=user.full_name,
+            bio=user.bio,
+            location=user.location,
+            avatar_url=user.avatar_url,
+            avg_rating=user.avg_rating,
+            total_games_played=user.total_games_played,
+            sports=[UserSportResponse.model_validate(sport) for sport in user.sports],
+            is_following=user.id in followed_ids,
+        )
+        for user in paginated.items
+    ]
+    return paginated
 
 
 async def get_my_profile(user: User, db: AsyncSession) -> UserResponse:
@@ -36,6 +99,7 @@ async def update_profile(
     user: User,
     payload: UpdateProfileRequest,
     db: AsyncSession,
+    avatar_file: UploadFile | None = None,
 ) -> UserResponse:
     """
     Update the authenticated user's profile.
@@ -62,6 +126,8 @@ async def update_profile(
         user.phone_number = normalized_phone
     if payload.avatar_url is not None:
         user.avatar_url = payload.avatar_url.strip()
+    if avatar_file is not None:
+        user.avatar_url = await save_avatar_upload(str(user.id), avatar_file)
 
     # Replace sports if provided
     if payload.sports is not None:
@@ -134,6 +200,11 @@ async def get_user_profile(
     )
     is_following = is_following_result.scalar_one_or_none() is not None
 
+    total_reviews_result = await db.execute(
+        select(func.count()).where(Review.reviewee_id == target_user_id)
+    )
+    total_reviews = total_reviews_result.scalar_one()
+
     return UserProfileResponse(
         id=target.id,
         full_name=target.full_name,
@@ -142,33 +213,11 @@ async def get_user_profile(
         avatar_url=target.avatar_url,
         avg_rating=target.avg_rating,
         total_games_played=target.total_games_played,
+        total_reviews=total_reviews,
         sports=[UserSportResponse.model_validate(s) for s in target.sports],
         followers_count=followers_count,
         following_count=following_count,
         is_following=is_following,
-    )
-
-
-async def get_user_stats(
-    target_user_id: uuid.UUID,
-    db: AsyncSession,
-) -> UserStatsResponse:
-    """Return a user's games played, avg rating, and total reviews count."""
-    result = await db.execute(select(User).where(User.id == target_user_id))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise UserNotFound()
-
-    total_reviews_result = await db.execute(
-        select(func.count()).where(Review.reviewee_id == target_user_id)
-    )
-    total_reviews = total_reviews_result.scalar_one()
-
-    return UserStatsResponse(
-        user_id=user.id,
-        total_games_played=user.total_games_played,
-        avg_rating=user.avg_rating,
-        total_reviews=total_reviews,
     )
 
 

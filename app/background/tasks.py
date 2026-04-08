@@ -120,7 +120,7 @@ async def geocode_match_address(match_id: UUID, address: str) -> None:
     logger.info(f"[TASK] geocode_match_address -> match={match_id} address={address!r}")
 
     try:
-        from app.utils.google_maps import geocode_address
+        from app.utils.geocoding import geocode_address
         from app.database import AsyncSessionLocal
         from app.models.match import Match
         from sqlalchemy import select
@@ -138,12 +138,13 @@ async def geocode_match_address(match_id: UUID, address: str) -> None:
             match_result = await db.execute(select(Match).where(Match.id == match_id))
             match = match_result.scalar_one_or_none()
             if match:
-                match.latitude = result["latitude"]
-                match.longitude = result["longitude"]
+                match.latitude = result.latitude
+                match.longitude = result.longitude
+                match.location_name = result.formatted_address
                 await db.commit()
                 logger.info(
                     f"[TASK] geocode_match_address: match={match_id} "
-                    f"-> ({result['latitude']}, {result['longitude']})"
+                    f"-> ({result.latitude}, {result.longitude})"
                 )
 
     except Exception as e:

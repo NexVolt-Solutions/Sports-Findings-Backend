@@ -9,7 +9,6 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 GEOCODING_URL    = "https://maps.googleapis.com/maps/api/geocode/json"
-PLACES_AC_URL    = "https://maps.googleapis.com/maps/api/place/autocomplete/json"
 
 # Earth radius in km
 EARTH_RADIUS_KM = 6371.0

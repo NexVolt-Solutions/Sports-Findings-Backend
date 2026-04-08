@@ -49,6 +49,14 @@ from app.background.tasks import (
 
 logger = logging.getLogger(__name__)
 
+
+def _format_scheduled_date(value: datetime) -> str:
+    return value.strftime("%Y-%m-%d")
+
+
+def _format_scheduled_time(value: datetime) -> str:
+    return value.strftime("%H:%M")
+
 # ─── ISO datetime parser (handles timezone-aware strings across Python 3.10+) ──
 
 def _parse_iso_datetime(value: str) -> datetime:
@@ -160,6 +168,7 @@ async def _count_active_players_for_match_ids(
 
 def _build_match_detail(match: Match, current_players: int) -> MatchDetailResponse:
     """Builds a MatchDetailResponse from a Match ORM object."""
+    location = match.location_name or match.facility_address
     return MatchDetailResponse(
         id=match.id,
         title=match.title,
@@ -169,8 +178,11 @@ def _build_match_detail(match: Match, current_players: int) -> MatchDetailRespon
         status=match.status,
         scheduled_at=match.scheduled_at,
         duration_minutes=match.duration_minutes,
+        scheduled_date=_format_scheduled_date(match.scheduled_at),
+        scheduled_time=_format_scheduled_time(match.scheduled_at),
         facility_address=match.facility_address,
         location_name=match.location_name,
+        location=location,
         latitude=match.latitude,
         longitude=match.longitude,
         max_players=match.max_players,
@@ -208,6 +220,9 @@ async def create_match(
         title=payload.title.strip(),
         description=payload.description.strip() if payload.description else None,
         facility_address=payload.facility_address.strip(),
+        location_name=payload.location_name.strip() if payload.location_name else None,
+        latitude=payload.latitude,
+        longitude=payload.longitude,
         scheduled_at=payload.scheduled_at,
         duration_minutes=payload.duration_minutes,
         max_players=payload.max_players,
@@ -237,12 +252,13 @@ async def create_match(
     )
     match = result.scalar_one()
 
-    # 4. Queue geocoding as background task (non-blocking)
-    background_tasks.add_task(
-        geocode_match_address,
-        match.id,
-        match.facility_address,
-    )
+    # 4. Only geocode when the frontend did not provide coordinates.
+    if match.latitude is None or match.longitude is None:
+        background_tasks.add_task(
+            geocode_match_address,
+            match.id,
+            match.facility_address,
+        )
 
     logger.info(f"Match created: '{match.title}' (id={match.id}) by host={host.id}")
 
@@ -260,6 +276,53 @@ async def get_match_by_id(
     match = await _get_match_or_404(match_id, db)
     current_players = await _count_active_players(match_id, db)
     return _build_match_detail(match, current_players)
+
+
+async def list_matches_by_type(
+    list_type: str,
+    current_user: User,
+    sport: SportType | None,
+    skill_level: SkillLevel | None,
+    date_from: str | None,
+    date_to: str | None,
+    lat: float | None,
+    lng: float | None,
+    radius_km: int,
+    pagination: PaginationParams,
+    db: AsyncSession,
+) -> PaginatedResponse:
+    """
+    Unified matches listing entrypoint for frontend list variants.
+    """
+    if list_type == "all":
+        return await list_matches(
+            sport=sport,
+            skill_level=skill_level,
+            date_from=date_from,
+            date_to=date_to,
+            pagination=pagination,
+            db=db,
+        )
+
+    if list_type == "my":
+        return await get_my_matches(current_user=current_user, pagination=pagination, db=db)
+
+    if list_type == "nearby":
+        if lat is None or lng is None:
+            raise bad_request("lat and lng are required when type=nearby")
+        return await get_nearby_matches(
+            lat=lat,
+            lng=lng,
+            radius_km=radius_km,
+            sport=sport,
+            skill_level=skill_level,
+            date_from=date_from,
+            date_to=date_to,
+            pagination=pagination,
+            db=db,
+        )
+
+    raise bad_request("Invalid type. Use one of: all, my, nearby")
 
 
 # ─── List Matches ─────────────────────────────────────────────────────────────
@@ -318,7 +381,10 @@ async def list_matches(
             status=match.status,
             scheduled_at=match.scheduled_at,
             duration_minutes=match.duration_minutes,
+            scheduled_date=_format_scheduled_date(match.scheduled_at),
+            scheduled_time=_format_scheduled_time(match.scheduled_at),
             location_name=match.location_name,
+            location=match.location_name or match.facility_address,
             facility_address=match.facility_address,
             latitude=match.latitude,
             longitude=match.longitude,
@@ -376,7 +442,10 @@ async def get_my_matches(
             status=match.status,
             scheduled_at=match.scheduled_at,
             duration_minutes=match.duration_minutes,
+            scheduled_date=_format_scheduled_date(match.scheduled_at),
+            scheduled_time=_format_scheduled_time(match.scheduled_at),
             location_name=match.location_name,
+            location=match.location_name or match.facility_address,
             facility_address=match.facility_address,
             latitude=match.latitude,
             longitude=match.longitude,
@@ -440,15 +509,25 @@ async def update_match(
         match.max_players = payload.max_players
     if payload.facility_address is not None:
         match.facility_address = payload.facility_address.strip()
+        address_changed = True
+    if payload.location_name is not None:
+        match.location_name = payload.location_name.strip() if payload.location_name else None
+    if payload.latitude is not None and payload.longitude is not None:
+        match.latitude = payload.latitude
+        match.longitude = payload.longitude
+        if payload.location_name is None and payload.facility_address is not None:
+            match.location_name = payload.facility_address.strip()
+        address_changed = False
+    elif payload.facility_address is not None:
         match.latitude = None
         match.longitude = None
-        match.location_name = None
-        address_changed = True
+        if payload.location_name is None:
+            match.location_name = None
 
     await db.commit()
     await db.refresh(match)
 
-    if address_changed:
+    if address_changed and match.latitude is None and match.longitude is None:
         background_tasks.add_task(geocode_match_address, match.id, match.facility_address)
 
     result = await db.execute(
@@ -936,7 +1015,10 @@ async def get_nearby_matches(
                 status=match.status,
                 scheduled_at=match.scheduled_at,
                 duration_minutes=match.duration_minutes,
+                scheduled_date=_format_scheduled_date(match.scheduled_at),
+                scheduled_time=_format_scheduled_time(match.scheduled_at),
                 location_name=match.location_name,
+                location=match.location_name or match.facility_address,
                 facility_address=match.facility_address,
                 latitude=match.latitude,
                 longitude=match.longitude,

@@ -1,9 +1,11 @@
 import logging
+from pathlib import Path
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -12,7 +14,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.config import settings
 from app.database import engine
 from app.middleware import RequestLoggingMiddleware, SecurityHeadersMiddleware
-from app.routes import auth, users, matches, notifications, chat, admin, places, options
+from app.routes import auth, users, matches, notifications, chat, admin, options
 
 # ─── Logging Setup ────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -54,6 +56,10 @@ app = FastAPI(
 )
 
 app.state.limiter = limiter
+
+uploads_dir = Path(settings.uploads_dir)
+uploads_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
 
 # ─── Middleware ───────────────────────────────────────────────────────────────
 app.add_middleware(
@@ -114,7 +120,6 @@ app.include_router(matches.router,       prefix=API_PREFIX)
 app.include_router(notifications.router, prefix=API_PREFIX)   # REST: /api/v1/notifications/*
 app.include_router(admin.router,         prefix=API_PREFIX)
 app.include_router(chat.router,          prefix=API_PREFIX)   # REST: GET /api/v1/matches/{id}/messages
-app.include_router(places.router,        prefix=API_PREFIX)   # REST: /api/v1/places/*
 app.include_router(options.router,       prefix=API_PREFIX)   # REST: /api/v1/options/*
 
 

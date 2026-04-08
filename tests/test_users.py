@@ -1,21 +1,21 @@
 """
-Phase 1 — User Profile Tests
-Tests for: get profile, update profile, follow/unfollow, get stats
+Phase 1 - User Profile Tests
+Tests for: get profile, update profile, follow/unfollow
 """
-import pytest
+from io import BytesIO
+
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.user import User
 from app.models.enums import UserStatus
+from app.models.user import User
 from app.utils.security import create_access_token
 
-
-# ─── Helpers ──────────────────────────────────────────────────────────────────
 
 async def create_active_user(db: AsyncSession, email: str, name: str) -> tuple[User, str]:
     """Creates an ACTIVE user directly in the DB and returns (user, access_token)."""
     from app.utils.security import hash_password
+
     user = User(
         email=email,
         hashed_password=hash_password("Secure123"),
@@ -29,10 +29,7 @@ async def create_active_user(db: AsyncSession, email: str, name: str) -> tuple[U
     return user, token
 
 
-# ─── Get My Profile ───────────────────────────────────────────────────────────
-
 async def test_get_my_profile_authenticated(client: AsyncClient, db_session: AsyncSession):
-    """Authenticated user should get their own profile."""
     user, token = await create_active_user(db_session, "profile@example.com", "Profile User")
     response = await client.get(
         "/api/v1/users/me",
@@ -45,15 +42,44 @@ async def test_get_my_profile_authenticated(client: AsyncClient, db_session: Asy
 
 
 async def test_get_my_profile_unauthenticated(client: AsyncClient):
-    """Unauthenticated request should return 403."""
     response = await client.get("/api/v1/users/me")
     assert response.status_code == 403
 
 
-# ─── Update Profile ───────────────────────────────────────────────────────────
+async def test_list_users_returns_public_users(client: AsyncClient, db_session: AsyncSession):
+    requester, token = await create_active_user(db_session, "browse@example.com", "Requester")
+    target_one, _ = await create_active_user(db_session, "player1@example.com", "Player One")
+    target_two, _ = await create_active_user(db_session, "player2@example.com", "Player Two")
+
+    response = await client.get(
+        "/api/v1/users",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    ids = [item["id"] for item in data["items"]]
+    assert str(requester.id) not in ids
+    assert str(target_one.id) in ids
+    assert str(target_two.id) in ids
+    assert all("email" not in item for item in data["items"])
+
+
+async def test_list_users_search_filters_results(client: AsyncClient, db_session: AsyncSession):
+    requester, token = await create_active_user(db_session, "searcher@example.com", "Searcher")
+    await create_active_user(db_session, "ali@example.com", "Ali Khan")
+    await create_active_user(db_session, "sara@example.com", "Sara Noor")
+
+    response = await client.get(
+        "/api/v1/users?search=Ali",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["items"]) == 1
+    assert data["items"][0]["full_name"] == "Ali Khan"
+
 
 async def test_update_profile_name(client: AsyncClient, db_session: AsyncSession):
-    """User should be able to update their full name."""
     user, token = await create_active_user(db_session, "update@example.com", "Old Name")
     response = await client.put(
         "/api/v1/users/me",
@@ -65,7 +91,6 @@ async def test_update_profile_name(client: AsyncClient, db_session: AsyncSession
 
 
 async def test_update_profile_sports(client: AsyncClient, db_session: AsyncSession):
-    """User should be able to add sport skill levels to their profile."""
     user, token = await create_active_user(db_session, "sports@example.com", "Sports User")
     response = await client.put(
         "/api/v1/users/me",
@@ -86,7 +111,6 @@ async def test_update_profile_sports(client: AsyncClient, db_session: AsyncSessi
 
 
 async def test_update_bio_and_location(client: AsyncClient, db_session: AsyncSession):
-    """User should be able to update bio and location."""
     user, token = await create_active_user(db_session, "bio@example.com", "Bio User")
     response = await client.put(
         "/api/v1/users/me",
@@ -99,10 +123,28 @@ async def test_update_bio_and_location(client: AsyncClient, db_session: AsyncSes
     assert data["location"] == "Copenhagen"
 
 
-# ─── Public Profile ───────────────────────────────────────────────────────────
+async def test_update_profile_with_avatar_in_single_request(client: AsyncClient, db_session: AsyncSession):
+    user, token = await create_active_user(db_session, "avatar@example.com", "Avatar User")
+    response = await client.put(
+        "/api/v1/users/me",
+        data={
+            "full_name": "Updated Avatar User",
+            "bio": "Ready to play",
+            "location": "Peshawar",
+        },
+        files={"avatar": ("avatar.png", BytesIO(b"\x89PNG\r\n\x1a\nfakepng"), "image/png")},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["full_name"] == "Updated Avatar User"
+    assert data["bio"] == "Ready to play"
+    assert data["location"] == "Peshawar"
+    assert data["avatar_url"] is not None
+    assert "/uploads/avatars/" in data["avatar_url"]
+
 
 async def test_get_other_user_profile(client: AsyncClient, db_session: AsyncSession):
-    """Authenticated user should be able to view another user's public profile."""
     viewer, viewer_token = await create_active_user(db_session, "viewer@example.com", "Viewer")
     target, _ = await create_active_user(db_session, "target@example.com", "Target User")
 
@@ -113,14 +155,16 @@ async def test_get_other_user_profile(client: AsyncClient, db_session: AsyncSess
     assert response.status_code == 200
     data = response.json()
     assert data["full_name"] == "Target User"
-    # Email should NOT be in public profile
+    assert "total_games_played" in data
+    assert "avg_rating" in data
+    assert "total_reviews" in data
     assert "email" not in data
 
 
 async def test_get_nonexistent_user_profile(client: AsyncClient, db_session: AsyncSession):
-    """Requesting a non-existent user profile should return 404."""
     user, token = await create_active_user(db_session, "requester@example.com", "Requester")
     import uuid
+
     fake_id = uuid.uuid4()
     response = await client.get(
         f"/api/v1/users/{fake_id}",
@@ -129,10 +173,7 @@ async def test_get_nonexistent_user_profile(client: AsyncClient, db_session: Asy
     assert response.status_code == 404
 
 
-# ─── Follow / Unfollow ────────────────────────────────────────────────────────
-
 async def test_follow_user(client: AsyncClient, db_session: AsyncSession):
-    """User should be able to follow another user."""
     follower, follower_token = await create_active_user(db_session, "follower@example.com", "Follower")
     followee, _ = await create_active_user(db_session, "followee@example.com", "Followee")
 
@@ -144,7 +185,6 @@ async def test_follow_user(client: AsyncClient, db_session: AsyncSession):
 
 
 async def test_follow_self_should_fail(client: AsyncClient, db_session: AsyncSession):
-    """User should not be able to follow themselves."""
     user, token = await create_active_user(db_session, "selffollow@example.com", "Self")
     response = await client.post(
         f"/api/v1/users/{user.id}/follow",
@@ -154,7 +194,6 @@ async def test_follow_self_should_fail(client: AsyncClient, db_session: AsyncSes
 
 
 async def test_follow_duplicate_should_fail(client: AsyncClient, db_session: AsyncSession):
-    """Following an already-followed user should return 409."""
     follower, follower_token = await create_active_user(db_session, "dup_follower@example.com", "Dup Follower")
     followee, _ = await create_active_user(db_session, "dup_followee@example.com", "Dup Followee")
 
@@ -170,7 +209,6 @@ async def test_follow_duplicate_should_fail(client: AsyncClient, db_session: Asy
 
 
 async def test_unfollow_user(client: AsyncClient, db_session: AsyncSession):
-    """User should be able to unfollow someone they follow."""
     follower, follower_token = await create_active_user(db_session, "unf_follower@example.com", "UnfFollower")
     followee, _ = await create_active_user(db_session, "unf_followee@example.com", "UnfFollowee")
 
@@ -186,7 +224,6 @@ async def test_unfollow_user(client: AsyncClient, db_session: AsyncSession):
 
 
 async def test_unfollow_not_following_should_fail(client: AsyncClient, db_session: AsyncSession):
-    """Unfollowing someone you don't follow should return 400."""
     user, token = await create_active_user(db_session, "notfollowing@example.com", "NotFollowing")
     other, _ = await create_active_user(db_session, "notfollowed@example.com", "NotFollowed")
 
@@ -195,23 +232,3 @@ async def test_unfollow_not_following_should_fail(client: AsyncClient, db_sessio
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 400
-
-
-# ─── User Stats ───────────────────────────────────────────────────────────────
-
-async def test_get_user_stats(client: AsyncClient, db_session: AsyncSession):
-    """Should return games played, avg rating, and total reviews."""
-    requester, token = await create_active_user(db_session, "statsreq@example.com", "Requester")
-    target, _ = await create_active_user(db_session, "statstarget@example.com", "Target")
-
-    response = await client.get(
-        f"/api/v1/users/{target.id}/stats",
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    assert response.status_code == 200
-    data = response.json()
-    assert "total_games_played" in data
-    assert "avg_rating" in data
-    assert "total_reviews" in data
-    assert data["total_games_played"] == 0
-    assert data["avg_rating"] == 0.0
