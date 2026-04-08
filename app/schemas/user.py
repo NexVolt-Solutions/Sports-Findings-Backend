@@ -1,10 +1,11 @@
 import uuid
 from datetime import datetime
+
 from pydantic import BaseModel
-from app.models.enums import UserStatus, SportType, SkillLevel
+
+from app.models.enums import SkillLevel, SportType, UserStatus
 
 
-# ─── Sport Schemas ────────────────────────────────────────────────────────────
 class UserSportResponse(BaseModel):
     sport: SportType
     skill_level: SkillLevel
@@ -17,11 +18,9 @@ class UserSportRequest(BaseModel):
     skill_level: SkillLevel
 
 
-# ─── User Summary (used in nested responses) ─────────────────────────────────
 class UserSummaryResponse(BaseModel):
     """
-    Lightweight user object — used inside match responses,
-    review responses, etc. Never exposes sensitive fields.
+    Lightweight user object used inside nested responses.
     """
     id: uuid.UUID
     full_name: str
@@ -31,10 +30,9 @@ class UserSummaryResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# ─── Full User Response (own profile) ────────────────────────────────────────
 class UserResponse(BaseModel):
     """
-    Full profile returned to the authenticated user themselves (GET /users/me).
+    Full profile returned to the authenticated user themselves.
     """
     id: uuid.UUID
     full_name: str
@@ -52,11 +50,29 @@ class UserResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# ─── Public Profile Response (other users) ───────────────────────────────────
 class UserProfileResponse(BaseModel):
     """
-    Public profile — returned when viewing another user's profile.
-    Does NOT expose email or account status.
+    Public profile returned when viewing another user's profile.
+    """
+    id: uuid.UUID
+    full_name: str
+    bio: str | None
+    location: str | None
+    avatar_url: str | None
+    avg_rating: float
+    total_games_played: int
+    total_reviews: int
+    sports: list[UserSportResponse]
+    followers_count: int = 0
+    following_count: int = 0
+    is_following: bool = False
+
+    model_config = {"from_attributes": True}
+
+
+class UserListItemResponse(BaseModel):
+    """
+    Public user card used in frontend browse/search user lists.
     """
     id: uuid.UUID
     full_name: str
@@ -66,14 +82,11 @@ class UserProfileResponse(BaseModel):
     avg_rating: float
     total_games_played: int
     sports: list[UserSportResponse]
-    followers_count: int = 0
-    following_count: int = 0
-    is_following: bool = False       # Whether the current user follows this profile
+    is_following: bool = False
 
     model_config = {"from_attributes": True}
 
 
-# ─── Update Profile Request ───────────────────────────────────────────────────
 class UpdateProfileRequest(BaseModel):
     full_name: str | None = None
     bio: str | None = None
@@ -82,10 +95,3 @@ class UpdateProfileRequest(BaseModel):
     avatar_url: str | None = None
     sports: list[UserSportRequest] | None = None
 
-
-# ─── User Stats ───────────────────────────────────────────────────────────────
-class UserStatsResponse(BaseModel):
-    user_id: uuid.UUID
-    total_games_played: int
-    avg_rating: float
-    total_reviews: int

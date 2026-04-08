@@ -31,11 +31,14 @@ router = APIRouter(prefix="/admin", tags=["Admin"])
 
 
 @router.get("/dashboard", response_model=DashboardStatsResponse)
-@router.get("/dashboard/stats", response_model=DashboardStatsResponse)
 async def get_dashboard_stats(
     admin: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
+    """
+    Get dashboard statistics.
+    Returns: total users, total matches, active matches, pending support requests, etc.
+    """
     return await admin_service.get_dashboard_stats(db)
 
 
@@ -108,15 +111,6 @@ async def list_matches(
     )
 
 
-@router.get("/matches/{match_id}", response_model=MatchDetailResponse)
-async def get_match(
-    match_id: uuid.UUID,
-    admin: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db),
-):
-    return await admin_service.get_match(match_id, db)
-
-
 @router.put("/matches/{match_id}", response_model=MatchDetailResponse)
 async def edit_match(
     match_id: uuid.UUID,
@@ -144,16 +138,6 @@ async def list_review_users(
     db: AsyncSession = Depends(get_db),
 ):
     return await admin_service.list_review_users(search, pagination, db)
-
-
-@router.get("/reviews/users/{user_id}", response_model=ReviewModerationUserReviewsResponse)
-async def get_review_user_reviews(
-    user_id: uuid.UUID,
-    pagination: PaginationParams = Depends(),
-    admin: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db),
-):
-    return await admin_service.get_review_user_reviews(user_id, pagination, db)
 
 
 @router.delete("/reviews/{review_id}", response_model=MessageResponse)

@@ -54,6 +54,21 @@ def match_payload(**overrides) -> dict:
     return base
 
 
+def match_payload_from_ui(**overrides) -> dict:
+    base = {
+        "title": "Final Tournament",
+        "description": "Describe your match...",
+        "sport": "Cricket",
+        "location": "Peshawar Sports Complex",
+        "date": "2026-06-16",
+        "time": "18:30",
+        "duration_minutes": 90,
+        "max_players": 10,
+    }
+    base.update(overrides)
+    return base
+
+
 # ─── Create Match ─────────────────────────────────────────────────────────────
 
 async def test_create_match_success(client: AsyncClient, db_session: AsyncSession):
@@ -120,7 +135,7 @@ async def test_create_match_appears_in_my_matches(client: AsyncClient, db_sessio
     )
     match_id = create_resp.json()["id"]
 
-    my_resp = await client.get("/api/v1/matches/my", headers=auth(token))
+    my_resp = await client.get("/api/v1/matches?type=my", headers=auth(token))
     assert my_resp.status_code == 200
     ids = [m["id"] for m in my_resp.json()["items"]]
     assert match_id in ids
@@ -144,6 +159,45 @@ async def test_create_match_invalid_max_players(client: AsyncClient, db_session:
         headers=auth(token),
     )
     assert response.status_code == 422
+
+
+async def test_create_match_accepts_ui_payload_shape(client: AsyncClient, db_session: AsyncSession):
+    """Create Match should accept date/time/location fields from the UI form."""
+    host, token = await make_user(db_session, "host_ui_create@example.com", "UI Host")
+    response = await client.post(
+        "/api/v1/matches",
+        json=match_payload_from_ui(),
+        headers=auth(token),
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["title"] == "Final Tournament"
+    assert data["sport"] == "Cricket"
+    assert data["location"] == "Peshawar Sports Complex"
+    assert data["facility_address"] == "Peshawar Sports Complex"
+    assert data["scheduled_date"] == "2026-06-16"
+    assert data["scheduled_time"] == "18:30"
+    assert data["skill_level"] == "Intermediate"
+
+
+async def test_create_match_accepts_frontend_place_coordinates(client: AsyncClient, db_session: AsyncSession):
+    """Frontend-selected location coordinates should be persisted directly."""
+    host, token = await make_user(db_session, "coords_create@example.com", "Coords Host")
+    response = await client.post(
+        "/api/v1/matches",
+        json=match_payload(
+            facility_address="Peshawar Sports Complex",
+            location_name="Peshawar Sports Complex",
+            latitude=34.0151,
+            longitude=71.5249,
+        ),
+        headers=auth(token),
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["location_name"] == "Peshawar Sports Complex"
+    assert data["latitude"] == 34.0151
+    assert data["longitude"] == 71.5249
 
 
 async def test_create_match_unauthenticated(client: AsyncClient):
@@ -203,6 +257,30 @@ async def test_update_match_non_host_forbidden(client: AsyncClient, db_session: 
         headers=auth(other_token),
     )
     assert response.status_code == 403
+
+
+async def test_update_match_accepts_frontend_place_coordinates(client: AsyncClient, db_session: AsyncSession):
+    """Match edit should accept frontend-selected place data without relying on backend geocoding."""
+    host, token = await make_user(db_session, "coords_update@example.com")
+    create_resp = await client.post("/api/v1/matches", json=match_payload(), headers=auth(token))
+    match_id = create_resp.json()["id"]
+
+    response = await client.put(
+        f"/api/v1/matches/{match_id}",
+        json={
+            "facility_address": "Islamabad Sports Arena",
+            "location_name": "Islamabad Sports Arena",
+            "latitude": 33.6844,
+            "longitude": 73.0479,
+        },
+        headers=auth(token),
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["facility_address"] == "Islamabad Sports Arena"
+    assert data["location_name"] == "Islamabad Sports Arena"
+    assert data["latitude"] == 33.6844
+    assert data["longitude"] == 73.0479
 
 
 # ─── Delete Match ─────────────────────────────────────────────────────────────
@@ -563,7 +641,7 @@ async def test_my_matches_includes_joined(client: AsyncClient, db_session: Async
     match_id = create_resp.json()["id"]
     await client.post(f"/api/v1/matches/{match_id}/join", headers=auth(player_token))
 
-    response = await client.get("/api/v1/matches/my", headers=auth(player_token))
+    response = await client.get("/api/v1/matches?type=my", headers=auth(player_token))
     assert response.status_code == 200
     ids = [m["id"] for m in response.json()["items"]]
     assert match_id in ids
@@ -580,7 +658,7 @@ async def test_my_matches_excludes_left(client: AsyncClient, db_session: AsyncSe
     await client.post(f"/api/v1/matches/{match_id}/join", headers=auth(player_token))
     await client.delete(f"/api/v1/matches/{match_id}/leave", headers=auth(player_token))
 
-    response = await client.get("/api/v1/matches/my", headers=auth(player_token))
+    response = await client.get("/api/v1/matches?type=my", headers=auth(player_token))
     ids = [m["id"] for m in response.json()["items"]]
     assert match_id not in ids
 

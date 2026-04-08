@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.main import app
 from app.models.user import User
 from app.models.match import Match
 from app.models.match_player import MatchPlayer
@@ -22,6 +23,11 @@ from app.utils.geocoding import (
     build_bounding_box,
     is_within_radius,
 )
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    app.state.limiter.reset()
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -184,7 +190,7 @@ async def test_discovery_returns_nearby_match(client: AsyncClient, db_session: A
     match = await make_match_with_coords(db_session, host, NEARBY_LAT, NEARBY_LNG)
 
     response = await client.get(
-        f"/api/v1/matches/nearby?lat={USER_LAT}&lng={USER_LNG}&radius_km=20",
+        f"/api/v1/matches?type=nearby&lat={USER_LAT}&lng={USER_LNG}&radius_km=20",
         headers=auth(token),
     )
     assert response.status_code == 200
@@ -198,7 +204,7 @@ async def test_discovery_excludes_far_match(client: AsyncClient, db_session: Asy
     match = await make_match_with_coords(db_session, host, FAR_LAT, FAR_LNG)
 
     response = await client.get(
-        f"/api/v1/matches/nearby?lat={USER_LAT}&lng={USER_LNG}&radius_km=20",
+        f"/api/v1/matches?type=nearby&lat={USER_LAT}&lng={USER_LNG}&radius_km=20",
         headers=auth(token),
     )
     assert response.status_code == 200
@@ -212,7 +218,7 @@ async def test_discovery_distance_km_populated(client: AsyncClient, db_session: 
     await make_match_with_coords(db_session, host, NEARBY_LAT, NEARBY_LNG)
 
     response = await client.get(
-        f"/api/v1/matches/nearby?lat={USER_LAT}&lng={USER_LNG}&radius_km=20",
+        f"/api/v1/matches?type=nearby&lat={USER_LAT}&lng={USER_LNG}&radius_km=20",
         headers=auth(token),
     )
     items = response.json()["items"]
@@ -240,7 +246,7 @@ async def test_discovery_sorted_by_distance(client: AsyncClient, db_session: Asy
     )
 
     response = await client.get(
-        f"/api/v1/matches/nearby?lat={USER_LAT}&lng={USER_LNG}&radius_km=20",
+        f"/api/v1/matches?type=nearby&lat={USER_LAT}&lng={USER_LNG}&radius_km=20",
         headers=auth(token),
     )
     items = response.json()["items"]
@@ -275,7 +281,7 @@ async def test_discovery_excludes_matches_without_coords(
     await db_session.commit()
 
     response = await client.get(
-        f"/api/v1/matches/nearby?lat={USER_LAT}&lng={USER_LNG}&radius_km=20",
+        f"/api/v1/matches?type=nearby&lat={USER_LAT}&lng={USER_LNG}&radius_km=20",
         headers=auth(token),
     )
     ids = [m["id"] for m in response.json()["items"]]
@@ -291,7 +297,7 @@ async def test_discovery_excludes_past_matches(client: AsyncClient, db_session: 
     )
 
     response = await client.get(
-        f"/api/v1/matches/nearby?lat={USER_LAT}&lng={USER_LNG}&radius_km=20",
+        f"/api/v1/matches?type=nearby&lat={USER_LAT}&lng={USER_LNG}&radius_km=20",
         headers=auth(token),
     )
     ids = [m["id"] for m in response.json()["items"]]
@@ -307,7 +313,7 @@ async def test_discovery_excludes_ongoing_matches(client: AsyncClient, db_sessio
     )
 
     response = await client.get(
-        f"/api/v1/matches/nearby?lat={USER_LAT}&lng={USER_LNG}&radius_km=20",
+        f"/api/v1/matches?type=nearby&lat={USER_LAT}&lng={USER_LNG}&radius_km=20",
         headers=auth(token),
     )
     ids = [m["id"] for m in response.json()["items"]]
@@ -323,7 +329,7 @@ async def test_discovery_includes_full_matches(client: AsyncClient, db_session: 
     )
 
     response = await client.get(
-        f"/api/v1/matches/nearby?lat={USER_LAT}&lng={USER_LNG}&radius_km=20",
+        f"/api/v1/matches?type=nearby&lat={USER_LAT}&lng={USER_LNG}&radius_km=20",
         headers=auth(token),
     )
     ids = [m["id"] for m in response.json()["items"]]
@@ -341,7 +347,7 @@ async def test_filter_by_sport(client: AsyncClient, db_session: AsyncSession):
                                   sport=SportType.CRICKET, title="Cricket Match")
 
     response = await client.get(
-        f"/api/v1/matches/nearby?lat={USER_LAT}&lng={USER_LNG}&sport=Basketball",
+        f"/api/v1/matches?type=nearby&lat={USER_LAT}&lng={USER_LNG}&sport=Basketball",
         headers=auth(token),
     )
     assert response.status_code == 200
@@ -358,7 +364,7 @@ async def test_filter_by_skill_level(client: AsyncClient, db_session: AsyncSessi
                                   skill_level=SkillLevel.ADVANCED)
 
     response = await client.get(
-        f"/api/v1/matches/nearby?lat={USER_LAT}&lng={USER_LNG}&skill_level=Beginner",
+        f"/api/v1/matches?type=nearby&lat={USER_LAT}&lng={USER_LNG}&skill_level=Beginner",
         headers=auth(token),
     )
     assert response.status_code == 200
@@ -377,7 +383,7 @@ async def test_filter_by_radius(client: AsyncClient, db_session: AsyncSession):
 
     # 5km radius — should find close but not medium
     response_5 = await client.get(
-        f"/api/v1/matches/nearby?lat={USER_LAT}&lng={USER_LNG}&radius_km=5",
+        f"/api/v1/matches?type=nearby&lat={USER_LAT}&lng={USER_LNG}&radius_km=5",
         headers=auth(token),
     )
     ids_5 = [m["id"] for m in response_5.json()["items"]]
@@ -386,7 +392,7 @@ async def test_filter_by_radius(client: AsyncClient, db_session: AsyncSession):
 
     # 20km radius — should find both
     response_20 = await client.get(
-        f"/api/v1/matches/nearby?lat={USER_LAT}&lng={USER_LNG}&radius_km=20",
+        f"/api/v1/matches?type=nearby&lat={USER_LAT}&lng={USER_LNG}&radius_km=20",
         headers=auth(token),
     )
     ids_20 = [m["id"] for m in response_20.json()["items"]]
@@ -414,7 +420,7 @@ async def test_filter_by_date_from(client: AsyncClient, db_session: AsyncSession
     # which avoids the URL query param encoding issue (+ → space → parse error)
     date_from = future_dt_url(24)
     response = await client.get(
-        f"/api/v1/matches/nearby?lat={USER_LAT}&lng={USER_LNG}&date_from={date_from}",
+        f"/api/v1/matches?type=nearby&lat={USER_LAT}&lng={USER_LNG}&date_from={date_from}",
         headers=auth(token),
     )
     assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
@@ -438,7 +444,7 @@ async def test_filter_by_date_to(client: AsyncClient, db_session: AsyncSession):
 
     date_to = future_dt_url(24)
     response = await client.get(
-        f"/api/v1/matches/nearby?lat={USER_LAT}&lng={USER_LNG}&date_to={date_to}",
+        f"/api/v1/matches?type=nearby&lat={USER_LAT}&lng={USER_LNG}&date_to={date_to}",
         headers=auth(token),
     )
     assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
@@ -468,7 +474,7 @@ async def test_filter_combined_sport_and_skill(client: AsyncClient, db_session: 
     )
 
     response = await client.get(
-        f"/api/v1/matches/nearby?lat={USER_LAT}&lng={USER_LNG}"
+        f"/api/v1/matches?type=nearby&lat={USER_LAT}&lng={USER_LNG}"
         f"&sport=Tennis&skill_level=Advanced",
         headers=auth(token),
     )
@@ -483,7 +489,7 @@ async def test_invalid_date_format_returns_400(client: AsyncClient, db_session: 
     """Invalid date format should return 400."""
     _, token = await make_user(db_session, "bad_date@example.com")
     response = await client.get(
-        f"/api/v1/matches/nearby?lat={USER_LAT}&lng={USER_LNG}&date_from=not-a-date",
+        f"/api/v1/matches?type=nearby&lat={USER_LAT}&lng={USER_LNG}&date_from=not-a-date",
         headers=auth(token),
     )
     assert response.status_code == 400
@@ -492,8 +498,8 @@ async def test_invalid_date_format_returns_400(client: AsyncClient, db_session: 
 async def test_discovery_missing_lat_lng_returns_422(client: AsyncClient, db_session: AsyncSession):
     """Missing lat/lng params should return 422."""
     _, token = await make_user(db_session, "missing_ll@example.com")
-    response = await client.get("/api/v1/matches/nearby", headers=auth(token))
-    assert response.status_code == 422
+    response = await client.get("/api/v1/matches?type=nearby", headers=auth(token))
+    assert response.status_code == 400
 
 
 async def test_discovery_default_radius_is_20km(client: AsyncClient, db_session: AsyncSession):
@@ -511,7 +517,7 @@ async def test_discovery_default_radius_is_20km(client: AsyncClient, db_session:
     )
 
     response = await client.get(
-        f"/api/v1/matches/nearby?lat={USER_LAT}&lng={USER_LNG}",
+        f"/api/v1/matches?type=nearby&lat={USER_LAT}&lng={USER_LNG}",
         headers=auth(token),
     )
     assert response.status_code == 200
@@ -528,7 +534,7 @@ async def test_discovery_pagination_structure(client: AsyncClient, db_session: A
     host, token = await make_user(db_session, "disc_page@example.com")
 
     response = await client.get(
-        f"/api/v1/matches/nearby?lat={USER_LAT}&lng={USER_LNG}&page=1&limit=5",
+        f"/api/v1/matches?type=nearby&lat={USER_LAT}&lng={USER_LNG}&page=1&limit=5",
         headers=auth(token),
     )
     assert response.status_code == 200
@@ -548,7 +554,7 @@ async def test_discovery_pagination_page_2(client: AsyncClient, db_session: Asyn
     """Page 2 should have has_prev=True."""
     _, token = await make_user(db_session, "disc_page2@example.com")
     response = await client.get(
-        f"/api/v1/matches/nearby?lat={USER_LAT}&lng={USER_LNG}&page=2&limit=5",
+        f"/api/v1/matches?type=nearby&lat={USER_LAT}&lng={USER_LNG}&page=2&limit=5",
         headers=auth(token),
     )
     assert response.status_code == 200
@@ -559,6 +565,6 @@ async def test_discovery_pagination_page_2(client: AsyncClient, db_session: Asyn
 async def test_discovery_unauthenticated_rejected(client: AsyncClient):
     """Unauthenticated discovery request should be rejected."""
     response = await client.get(
-        f"/api/v1/matches/nearby?lat={USER_LAT}&lng={USER_LNG}"
+        f"/api/v1/matches?type=nearby&lat={USER_LAT}&lng={USER_LNG}"
     )
     assert response.status_code == 403

@@ -1,157 +1,190 @@
 import uuid
-from datetime import datetime
-from datetime import timezone
+from datetime import datetime, timezone
+
 from pydantic import BaseModel, field_validator, model_validator
-from app.models.enums import SportType, SkillLevel, MatchStatus
+
+from app.models.enums import MatchStatus, SkillLevel, SportType
 from app.schemas.user import UserSummaryResponse
 
 
-# ─── Create Match ─────────────────────────────────────────────────────────────
 class CreateMatchRequest(BaseModel):
     title: str
-    description: str
+    description: str | None = None
     sport: SportType
-    facility_address: str
-    scheduled_at: datetime
-    duration_minutes: int
+    facility_address: str | None = None
+    location: str | None = None
+    location_name: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+    scheduled_at: datetime | None = None
+    date: str | None = None
+    time: str | None = None
+    duration_minutes: int | None = None
     max_players: int
-    skill_level: SkillLevel
+    skill_level: SkillLevel = SkillLevel.INTERMEDIATE
+
+    @model_validator(mode="after")
+    def normalize_ui_fields(self) -> "CreateMatchRequest":
+        if not self.facility_address and self.location:
+            self.facility_address = self.location.strip()
+
+        if not self.location_name and self.location:
+            self.location_name = self.location.strip()
+
+        if self.scheduled_at is None:
+            if not self.date or not self.time:
+                raise ValueError("Provide either scheduled_at or both date and time")
+
+            try:
+                parsed = datetime.fromisoformat(f"{self.date.strip()}T{self.time.strip()}")
+            except ValueError as exc:
+                raise ValueError("Invalid date/time format. Use YYYY-MM-DD and HH:MM") from exc
+
+            self.scheduled_at = parsed.replace(tzinfo=timezone.utc)
+
+        if self.duration_minutes is None:
+            raise ValueError("duration_minutes is required")
+
+        if (self.latitude is None) != (self.longitude is None):
+            raise ValueError("latitude and longitude must be provided together")
+
+        return self
 
     @field_validator("title")
     @classmethod
-    def validate_title(cls, v: str) -> str:
-        v = v.strip()
-        if len(v) < 3:
+    def validate_title(cls, value: str) -> str:
+        value = value.strip()
+        if len(value) < 3:
             raise ValueError("Title must be at least 3 characters")
-        if len(v) > 150:
+        if len(value) > 150:
             raise ValueError("Title must be at most 150 characters")
-        return v
+        return value
 
     @field_validator("max_players")
     @classmethod
-    def validate_max_players(cls, v: int) -> int:
-        if v < 2:
+    def validate_max_players(cls, value: int) -> int:
+        if value < 2:
             raise ValueError("A match must allow at least 2 players")
-        if v > 50:
+        if value > 50:
             raise ValueError("Maximum player limit is 50")
-        return v
+        return value
 
     @field_validator("duration_minutes")
     @classmethod
-    def validate_duration(cls, v: int) -> int:
-        if v < 10:
+    def validate_duration(cls, value: int) -> int:
+        if value < 10:
             raise ValueError("Match duration must be at least 10 minutes")
-        if v > 480:
+        if value > 480:
             raise ValueError("Match duration cannot exceed 8 hours")
-        return v
+        return value
 
     @field_validator("facility_address")
     @classmethod
-    def validate_address(cls, v: str) -> str:
-        v = v.strip()
-        if len(v) < 5:
+    def validate_address(cls, value: str) -> str:
+        value = value.strip()
+        if len(value) < 5:
             raise ValueError("Please enter a valid facility address")
-        return v
+        return value
 
     @field_validator("scheduled_at")
     @classmethod
-    def validate_scheduled_at(cls, v: datetime) -> datetime:
-        # Use module-level datetime/timezone imports (not inner import which shadows them)
+    def validate_scheduled_at(cls, value: datetime) -> datetime:
         now = datetime.now(timezone.utc)
-        # Make timezone-aware if naive
-        if v.tzinfo is None:
-            v = v.replace(tzinfo=timezone.utc)
-        if v <= now:
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        if value <= now:
             raise ValueError("Match must be scheduled in the future")
-        return v
+        return value
 
 
-# ─── Update Match ─────────────────────────────────────────────────────────────
 class UpdateMatchRequest(BaseModel):
-    """All fields are optional — only provided fields are updated."""
     title: str | None = None
     description: str | None = None
     facility_address: str | None = None
+    location: str | None = None
+    location_name: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
     scheduled_at: datetime | None = None
     duration_minutes: int | None = None
     max_players: int | None = None
     skill_level: SkillLevel | None = None
 
+    @model_validator(mode="after")
+    def normalize_location_fields(self) -> "UpdateMatchRequest":
+        if self.facility_address is None and self.location is not None:
+            self.facility_address = self.location.strip()
+
+        if self.location_name is None and self.location is not None:
+            self.location_name = self.location.strip()
+
+        if (self.latitude is None) != (self.longitude is None):
+            raise ValueError("latitude and longitude must be provided together")
+
+        return self
+
     @field_validator("title")
     @classmethod
-    def validate_title(cls, v: str | None) -> str | None:
-        if v is None:
-            return v
-        v = v.strip()
-        if len(v) < 3:
+    def validate_title(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        value = value.strip()
+        if len(value) < 3:
             raise ValueError("Title must be at least 3 characters")
-        if len(v) > 150:
+        if len(value) > 150:
             raise ValueError("Title must be at most 150 characters")
-        return v
+        return value
 
     @field_validator("max_players")
     @classmethod
-    def validate_max_players(cls, v: int | None) -> int | None:
-        if v is None:
-            return v
-        if v < 2:
+    def validate_max_players(cls, value: int | None) -> int | None:
+        if value is None:
+            return value
+        if value < 2:
             raise ValueError("A match must allow at least 2 players")
-        if v > 50:
+        if value > 50:
             raise ValueError("Maximum player limit is 50")
-        return v
+        return value
 
     @field_validator("duration_minutes")
     @classmethod
-    def validate_duration(cls, v: int | None) -> int | None:
-        if v is None:
-            return v
-        if v < 10:
+    def validate_duration(cls, value: int | None) -> int | None:
+        if value is None:
+            return value
+        if value < 10:
             raise ValueError("Match duration must be at least 10 minutes")
-        if v > 480:
+        if value > 480:
             raise ValueError("Match duration cannot exceed 8 hours")
-        return v
+        return value
 
     @field_validator("facility_address")
     @classmethod
-    def validate_address(cls, v: str | None) -> str | None:
-        if v is None:
-            return v
-        v = v.strip()
-        if len(v) < 5:
+    def validate_address(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        value = value.strip()
+        if len(value) < 5:
             raise ValueError("Please enter a valid facility address")
-        return v
+        return value
 
     @field_validator("scheduled_at")
     @classmethod
-    def validate_scheduled_at(cls, v: datetime | None) -> datetime | None:
-        if v is None:
-            return v
+    def validate_scheduled_at(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return value
         now = datetime.now(timezone.utc)
-        if v.tzinfo is None:
-            v = v.replace(tzinfo=timezone.utc)
-        if v <= now:
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        if value <= now:
             raise ValueError("Match must be scheduled in the future")
-        return v
+        return value
 
 
-# ─── Match Status Update ──────────────────────────────────────────────────────
 class MatchStatusUpdateRequest(BaseModel):
-    """
-    Used by the host to update match status.
-    Valid transitions:
-      OPEN / FULL → ONGOING  (Start Game)
-      ONGOING     → COMPLETED
-      OPEN / FULL → CANCELLED
-    """
     status: MatchStatus
 
 
-# ─── Match Summary (used in list/discovery responses) ────────────────────────
 class MatchSummaryResponse(BaseModel):
-    """
-    Lightweight match object returned in list and discovery results.
-    Does not include full player list or messages.
-    """
     id: uuid.UUID
     title: str
     sport: SportType
@@ -159,24 +192,22 @@ class MatchSummaryResponse(BaseModel):
     status: MatchStatus
     scheduled_at: datetime
     duration_minutes: int
+    scheduled_date: str
+    scheduled_time: str
     location_name: str | None
+    location: str
     facility_address: str
     latitude: float | None
     longitude: float | None
     max_players: int
-    current_players: int = 0           # Computed from active MatchPlayer records
-    distance_km: float | None = None   # Populated in discovery responses only
+    current_players: int = 0
+    distance_km: float | None = None
     host: UserSummaryResponse
 
     model_config = {"from_attributes": True}
 
 
-# ─── Match Detail (full single match view) ───────────────────────────────────
 class MatchDetailResponse(BaseModel):
-    """
-    Full match detail — returned when viewing a single match.
-    Includes host info and participant list.
-    """
     id: uuid.UUID
     title: str
     description: str | None
@@ -185,8 +216,11 @@ class MatchDetailResponse(BaseModel):
     status: MatchStatus
     scheduled_at: datetime
     duration_minutes: int
+    scheduled_date: str
+    scheduled_time: str
     facility_address: str
     location_name: str | None
+    location: str
     latitude: float | None
     longitude: float | None
     max_players: int
@@ -197,9 +231,7 @@ class MatchDetailResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
-# ─── Match Player Response ────────────────────────────────────────────────────
 class MatchPlayerResponse(BaseModel):
-    """Represents a participant in a match."""
     user: UserSummaryResponse
     role: str
     joined_at: datetime
