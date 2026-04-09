@@ -1,9 +1,7 @@
 import uuid
 from typing import Optional
-
 import aioboto3
 from fastapi import HTTPException, status, UploadFile
-
 from app.config import settings
 
 
@@ -15,8 +13,7 @@ def _make_s3_object_key(user_id: str, original_filename: str) -> str:
 def _public_url_for_key(key: str) -> str:
     if settings.cloudfront_domain:
         return f"https://{settings.cloudfront_domain}/{key}"
-
-    # Standard S3 public URL format assuming public-read policy
+    # Standard S3 public URL format using bucket policy for public access
     return f"https://{settings.aws_s3_bucket_name}.s3.{settings.aws_region}.amazonaws.com/{key}"
 
 
@@ -43,15 +40,15 @@ async def upload_avatar_to_s3(user_id: str, file: UploadFile) -> str:
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Uploaded avatar file is empty",
                 )
-
             await s3.put_object(
                 Bucket=settings.aws_s3_bucket_name,
                 Key=object_key,
                 Body=content,
                 ContentType=file.content_type or "application/octet-stream",
-                ACL="public-read",
+                # ACL removed — bucket uses bucket policy for public read access
             )
-
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -59,3 +56,4 @@ async def upload_avatar_to_s3(user_id: str, file: UploadFile) -> str:
         )
 
     return _public_url_for_key(object_key)
+

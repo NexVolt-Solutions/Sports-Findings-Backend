@@ -1,9 +1,9 @@
 {
   "info": {
-    "_postman_id": "8f694760-847b-4af6-8f3f-1a2f2c41f4f7",
+    "_postman_id": "5cdb65ee-9bbf-43cf-a654-ae5a8d562cdf",
     "name": "Sports Platform API",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Postman collection for the Sports Platform API."
+    "description": "Postman collection aligned with the current Sports Platform backend deployed at https://api.sportfinding.com."
   },
   "auth": {
     "type": "bearer",
@@ -19,7 +19,7 @@
   "variable": [
     {
       "key": "baseUrl",
-      "value": "http://localhost:8000"
+      "value": "https://api.sportfinding.com"
     },
     {
       "key": "apiBase",
@@ -70,21 +70,17 @@
     {
       "name": "Health",
       "request": {
-        "auth": {
-          "type": "noauth"
-        },
         "method": "GET",
         "header": [],
         "url": {
-          "raw": "{{baseUrl}}/health",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "health"
-          ]
+          "raw": "{{baseUrl}}/health"
+        },
+        "description": "Health check. Returns app/environment metadata.",
+        "auth": {
+          "type": "noauth"
         }
-      }
+      },
+      "response": []
     },
     {
       "name": "Auth",
@@ -92,38 +88,56 @@
         {
           "name": "Register",
           "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/auth/register"
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "full_name",
+                  "value": "Amna Ali",
+                  "type": "text"
+                },
+                {
+                  "key": "email",
+                  "value": "amna@example.com",
+                  "type": "text"
+                },
+                {
+                  "key": "password",
+                  "value": "Password1",
+                  "type": "text"
+                },
+                {
+                  "key": "confirm_password",
+                  "value": "Password1",
+                  "type": "text"
+                },
+                {
+                  "key": "accept_terms",
+                  "value": "true",
+                  "type": "text"
+                },
+                {
+                  "key": "avatar",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            },
+            "description": "Multipart registration. Avatar is optional. Response: { message }.",
             "auth": {
               "type": "noauth"
-            },
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"full_name\": \"Amna Ali\",\n  \"email\": \"amna@example.com\",\n  \"phone_number\": \"+923001112233\",\n  \"password\": \"Password1\",\n  \"confirm_password\": \"Password1\",\n  \"avatar_url\": \"https://example.com/avatar.jpg\",\n  \"accept_terms\": true\n}"
-            },
-            "url": {
-              "raw": "{{apiBase}}/auth/register",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "auth",
-                "register"
-              ]
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "Verify Email",
           "request": {
-            "auth": {
-              "type": "noauth"
-            },
             "method": "POST",
             "header": [
               {
@@ -131,28 +145,27 @@
                 "value": "application/json"
               }
             ],
+            "url": {
+              "raw": "{{apiBase}}/auth/verify-email"
+            },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"amna@example.com\",\n  \"otp\": \"{{verifyOtp}}\"\n}"
+              "raw": "{\n  \"email\": \"amna@example.com\",\n  \"otp\": \"{{verifyOtp}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
-            "url": {
-              "raw": "{{apiBase}}/auth/verify-email",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "auth",
-                "verify-email"
-              ]
+            "auth": {
+              "type": "noauth"
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "Resend Verification OTP",
           "request": {
-            "auth": {
-              "type": "noauth"
-            },
             "method": "POST",
             "header": [
               {
@@ -160,41 +173,68 @@
                 "value": "application/json"
               }
             ],
+            "url": {
+              "raw": "{{apiBase}}/auth/resend-verification-otp"
+            },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"amna@example.com\"\n}"
+              "raw": "{\n  \"email\": \"amna@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
-            "url": {
-              "raw": "{{apiBase}}/auth/resend-verification-otp",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "auth",
-                "resend-verification-otp"
-              ]
+            "auth": {
+              "type": "noauth"
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{apiBase}}/auth/login"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"amna@example.com\",\n  \"password\": \"Password1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
           "event": [
             {
               "listen": "test",
               "script": {
+                "type": "text/javascript",
                 "exec": [
                   "const data = pm.response.json();",
-                  "pm.collectionVariables.set('accessToken', data.access_token);",
-                  "pm.collectionVariables.set('refreshToken', data.refresh_token);"
-                ],
-                "type": "text/javascript"
+                  "if (data.access_token) pm.collectionVariables.set('accessToken', data.access_token);",
+                  "if (data.refresh_token) pm.collectionVariables.set('refreshToken', data.refresh_token);"
+                ]
               }
             }
-          ],
+          ]
+        },
+        {
+          "name": "Google Auth",
           "request": {
-            "auth": {
-              "type": "noauth"
-            },
             "method": "POST",
             "header": [
               {
@@ -202,28 +242,27 @@
                 "value": "application/json"
               }
             ],
+            "url": {
+              "raw": "{{apiBase}}/auth/google"
+            },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"amna@example.com\",\n  \"password\": \"Password1\"\n}"
+              "raw": "{\n  \"id_token\": \"GOOGLE_ID_TOKEN_HERE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
-            "url": {
-              "raw": "{{apiBase}}/auth/login",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "auth",
-                "login"
-              ]
+            "auth": {
+              "type": "noauth"
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "Refresh Token",
           "request": {
-            "auth": {
-              "type": "noauth"
-            },
             "method": "POST",
             "header": [
               {
@@ -231,28 +270,27 @@
                 "value": "application/json"
               }
             ],
+            "url": {
+              "raw": "{{apiBase}}/auth/refresh"
+            },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}"
+              "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
-            "url": {
-              "raw": "{{apiBase}}/auth/refresh",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "auth",
-                "refresh"
-              ]
+            "auth": {
+              "type": "noauth"
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "Logout",
           "request": {
-            "auth": {
-              "type": "noauth"
-            },
             "method": "POST",
             "header": [
               {
@@ -260,28 +298,27 @@
                 "value": "application/json"
               }
             ],
+            "url": {
+              "raw": "{{apiBase}}/auth/logout"
+            },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}"
+              "raw": "{\n  \"refresh_token\": \"{{refreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
-            "url": {
-              "raw": "{{apiBase}}/auth/logout",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "auth",
-                "logout"
-              ]
+            "auth": {
+              "type": "noauth"
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "Forgot Password",
           "request": {
-            "auth": {
-              "type": "noauth"
-            },
             "method": "POST",
             "header": [
               {
@@ -289,28 +326,27 @@
                 "value": "application/json"
               }
             ],
+            "url": {
+              "raw": "{{apiBase}}/auth/forgot-password"
+            },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"amna@example.com\"\n}"
+              "raw": "{\n  \"email\": \"amna@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
-            "url": {
-              "raw": "{{apiBase}}/auth/forgot-password",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "auth",
-                "forgot-password"
-              ]
+            "auth": {
+              "type": "noauth"
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "Reset Password",
           "request": {
-            "auth": {
-              "type": "noauth"
-            },
             "method": "POST",
             "header": [
               {
@@ -318,21 +354,23 @@
                 "value": "application/json"
               }
             ],
+            "url": {
+              "raw": "{{apiBase}}/auth/reset-password"
+            },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"token\": \"PASTE_RESET_TOKEN_HERE\",\n  \"new_password\": \"Password2\"\n}"
+              "raw": "{\n  \"token\": \"RESET_TOKEN_HERE\",\n  \"new_password\": \"Password2\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
-            "url": {
-              "raw": "{{apiBase}}/auth/reset-password",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "auth",
-                "reset-password"
-              ]
+            "auth": {
+              "type": "noauth"
             }
-          }
+          },
+          "response": []
         }
       ]
     },
@@ -340,36 +378,30 @@
       "name": "Users",
       "item": [
         {
-          "name": "Get My Profile",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "const data = pm.response.json();",
-                  "pm.collectionVariables.set('userId', data.id);"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
+          "name": "List Users",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{apiBase}}/users/me",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "users",
-                "me"
-              ]
-            }
-          }
+              "raw": "{{apiBase}}/users?page=1&limit=20&search="
+            },
+            "description": "Public frontend user browse/search endpoint."
+          },
+          "response": []
         },
         {
-          "name": "Update My Profile",
+          "name": "Get My Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/users/me"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update My Profile (JSON)",
           "request": {
             "method": "PUT",
             "header": [
@@ -378,49 +410,68 @@
                 "value": "application/json"
               }
             ],
+            "url": {
+              "raw": "{{apiBase}}/users/me"
+            },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"full_name\": \"Amna Ali\",\n  \"bio\": \"Cricket and badminton player\",\n  \"location\": \"Lahore\",\n  \"phone_number\": \"+923001112233\",\n  \"avatar_url\": \"https://example.com/avatar2.jpg\",\n  \"sports\": [\n    {\n      \"sport\": \"CRICKET\",\n      \"skill_level\": \"INTERMEDIATE\"\n    },\n    {\n      \"sport\": \"BADMINTON\",\n      \"skill_level\": \"BEGINNER\"\n    }\n  ]\n}"
+              "raw": "{\n  \"full_name\": \"Amna Ali\",\n  \"bio\": \"Weekend cricket player\",\n  \"location\": \"Lahore\",\n  \"phone_number\": \"+923001112233\",\n  \"avatar_url\": \"https://example.com/avatar.jpg\",\n  \"sports\": [\n    {\n      \"sport\": \"Cricket\",\n      \"skill_level\": \"Intermediate\"\n    },\n    {\n      \"sport\": \"Badminton\",\n      \"skill_level\": \"Beginner\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
-            "url": {
-              "raw": "{{apiBase}}/users/me",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "users",
-                "me"
-              ]
-            }
-          }
+            "description": "Use JSON when updating profile fields only."
+          },
+          "response": []
         },
         {
-          "name": "Upload Avatar Placeholder",
+          "name": "Update My Profile + Avatar (Multipart)",
           "request": {
-            "method": "POST",
+            "method": "PUT",
             "header": [],
+            "url": {
+              "raw": "{{apiBase}}/users/me"
+            },
             "body": {
               "mode": "formdata",
               "formdata": [
                 {
-                  "key": "file",
+                  "key": "full_name",
+                  "value": "Amna Ali",
+                  "type": "text"
+                },
+                {
+                  "key": "bio",
+                  "value": "Weekend cricket player",
+                  "type": "text"
+                },
+                {
+                  "key": "location",
+                  "value": "Lahore",
+                  "type": "text"
+                },
+                {
+                  "key": "phone_number",
+                  "value": "+923001112233",
+                  "type": "text"
+                },
+                {
+                  "key": "sports",
+                  "value": "[{\"sport\": \"Cricket\", \"skill_level\": \"Intermediate\"}, {\"sport\": \"Badminton\", \"skill_level\": \"Beginner\"}]",
+                  "type": "text"
+                },
+                {
+                  "key": "avatar",
                   "type": "file",
                   "src": ""
                 }
               ]
             },
-            "url": {
-              "raw": "{{apiBase}}/users/me/avatar",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "users",
-                "me",
-                "avatar"
-              ]
-            }
-          }
+            "description": "Use multipart/form-data to upload avatar and update profile in one request."
+          },
+          "response": []
         },
         {
           "name": "Get User Profile",
@@ -428,34 +479,11 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{apiBase}}/users/{{userId}}",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "users",
-                "{{userId}}"
-              ]
-            }
-          }
-        },
-        {
-          "name": "Get User Stats",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{apiBase}}/users/{{userId}}/stats",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "users",
-                "{{userId}}",
-                "stats"
-              ]
-            }
-          }
+              "raw": "{{apiBase}}/users/{{userId}}"
+            },
+            "description": "Public profile response already includes total_reviews, avg_rating, and total_games_played."
+          },
+          "response": []
         },
         {
           "name": "Get User Reviews",
@@ -463,27 +491,10 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{apiBase}}/users/{{userId}}/reviews?page=1&limit=20",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "users",
-                "{{userId}}",
-                "reviews"
-              ],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "1"
-                },
-                {
-                  "key": "limit",
-                  "value": "20"
-                }
-              ]
+              "raw": "{{apiBase}}/users/{{userId}}/reviews?page=1&limit=20"
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "Create Review",
@@ -495,22 +506,20 @@
                 "value": "application/json"
               }
             ],
+            "url": {
+              "raw": "{{apiBase}}/users/{{otherUserId}}/reviews"
+            },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"match_id\": \"{{matchId}}\",\n  \"rating\": 5,\n  \"comment\": \"Great player and good teamwork\"\n}"
-            },
-            "url": {
-              "raw": "{{apiBase}}/users/{{otherUserId}}/reviews",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "users",
-                "{{otherUserId}}",
-                "reviews"
-              ]
+              "raw": "{\n  \"match_id\": \"{{matchId}}\",\n  \"rating\": 5,\n  \"comment\": \"Great player and very cooperative.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "Follow User",
@@ -518,17 +527,10 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{apiBase}}/users/{{otherUserId}}/follow",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "users",
-                "{{otherUserId}}",
-                "follow"
-              ]
+              "raw": "{{apiBase}}/users/{{otherUserId}}/follow"
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "Unfollow User",
@@ -536,17 +538,10 @@
             "method": "DELETE",
             "header": [],
             "url": {
-              "raw": "{{apiBase}}/users/{{otherUserId}}/follow",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "users",
-                "{{otherUserId}}",
-                "follow"
-              ]
+              "raw": "{{apiBase}}/users/{{otherUserId}}/follow"
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "Get Followers",
@@ -554,27 +549,10 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{apiBase}}/users/{{userId}}/followers?page=1&limit=20",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "users",
-                "{{userId}}",
-                "followers"
-              ],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "1"
-                },
-                {
-                  "key": "limit",
-                  "value": "20"
-                }
-              ]
+              "raw": "{{apiBase}}/users/{{userId}}/followers?page=1&limit=20"
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "Get Following",
@@ -582,27 +560,10 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{apiBase}}/users/{{userId}}/following?page=1&limit=20",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "users",
-                "{{userId}}",
-                "following"
-              ],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "1"
-                },
-                {
-                  "key": "limit",
-                  "value": "20"
-                }
-              ]
+              "raw": "{{apiBase}}/users/{{userId}}/following?page=1&limit=20"
             }
-          }
+          },
+          "response": []
         }
       ]
     },
@@ -611,18 +572,6 @@
       "item": [
         {
           "name": "Create Match",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "const data = pm.response.json();",
-                  "pm.collectionVariables.set('matchId', data.id);"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
           "request": {
             "method": "POST",
             "header": [
@@ -631,86 +580,21 @@
                 "value": "application/json"
               }
             ],
+            "url": {
+              "raw": "{{apiBase}}/matches"
+            },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"Evening Cricket\",\n  \"description\": \"Friendly match at 7 PM\",\n  \"sport\": \"CRICKET\",\n  \"facility_address\": \"Model Town Sports Ground, Lahore\",\n  \"scheduled_at\": \"2026-04-02T19:00:00+05:00\",\n  \"duration_minutes\": 90,\n  \"max_players\": 10,\n  \"skill_level\": \"INTERMEDIATE\"\n}"
+              "raw": "{\n  \"title\": \"Final Tournament\",\n  \"description\": \"Describe your match...\",\n  \"sport\": \"Cricket\",\n  \"location\": \"Peshawar Sports Complex\",\n  \"date\": \"2026-06-16\",\n  \"time\": \"18:30\",\n  \"duration_minutes\": 90,\n  \"max_players\": 10\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
-            "url": {
-              "raw": "{{apiBase}}/matches",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "matches"
-              ]
-            }
-          }
-        },
-        {
-          "name": "Get My Matches",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{apiBase}}/matches/my?page=1&limit=20",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "matches",
-                "my"
-              ],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "1"
-                },
-                {
-                  "key": "limit",
-                  "value": "20"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "Nearby Matches",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{apiBase}}/matches/nearby?lat=31.5204&lng=74.3587&radius_km=20&page=1&limit=20",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "matches",
-                "nearby"
-              ],
-              "query": [
-                {
-                  "key": "lat",
-                  "value": "31.5204"
-                },
-                {
-                  "key": "lng",
-                  "value": "74.3587"
-                },
-                {
-                  "key": "radius_km",
-                  "value": "20"
-                },
-                {
-                  "key": "page",
-                  "value": "1"
-                },
-                {
-                  "key": "limit",
-                  "value": "20"
-                }
-              ]
-            }
-          }
+            "description": "UI-friendly payload. You may also send facility_address/location_name/latitude/longitude directly."
+          },
+          "response": []
         },
         {
           "name": "List Matches",
@@ -718,25 +602,32 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{apiBase}}/matches?page=1&limit=20",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "matches"
-              ],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "1"
-                },
-                {
-                  "key": "limit",
-                  "value": "20"
-                }
-              ]
+              "raw": "{{apiBase}}/matches?type=all&page=1&limit=20"
             }
-          }
+          },
+          "response": []
+        },
+        {
+          "name": "Get My Matches",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/matches?type=my&page=1&limit=20"
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Nearby Matches",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/matches?type=nearby&lat=31.5204&lng=74.3587&radius_km=20&page=1&limit=20"
+            }
+          },
+          "response": []
         },
         {
           "name": "Get Match Detail",
@@ -744,16 +635,10 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{apiBase}}/matches/{{matchId}}",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "matches",
-                "{{matchId}}"
-              ]
+              "raw": "{{apiBase}}/matches/{{matchId}}"
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "Update Match",
@@ -765,21 +650,20 @@
                 "value": "application/json"
               }
             ],
+            "url": {
+              "raw": "{{apiBase}}/matches/{{matchId}}"
+            },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"title\": \"Evening Cricket Updated\",\n  \"description\": \"Updated friendly match\",\n  \"facility_address\": \"Johar Town Sports Complex, Lahore\",\n  \"scheduled_at\": \"2026-04-03T19:00:00+05:00\",\n  \"duration_minutes\": 120,\n  \"max_players\": 12,\n  \"skill_level\": \"INTERMEDIATE\"\n}"
-            },
-            "url": {
-              "raw": "{{apiBase}}/matches/{{matchId}}",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "matches",
-                "{{matchId}}"
-              ]
+              "raw": "{\n  \"title\": \"Updated Final Tournament\",\n  \"facility_address\": \"Islamabad Sports Arena\",\n  \"location_name\": \"Islamabad Sports Arena\",\n  \"latitude\": 33.6844,\n  \"longitude\": 73.0479,\n  \"duration_minutes\": 120,\n  \"max_players\": 12,\n  \"skill_level\": \"Advanced\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "Delete Match",
@@ -787,16 +671,10 @@
             "method": "DELETE",
             "header": [],
             "url": {
-              "raw": "{{apiBase}}/matches/{{matchId}}",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "matches",
-                "{{matchId}}"
-              ]
+              "raw": "{{apiBase}}/matches/{{matchId}}"
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "Join Match",
@@ -804,17 +682,10 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{apiBase}}/matches/{{matchId}}/join",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "matches",
-                "{{matchId}}",
-                "join"
-              ]
+              "raw": "{{apiBase}}/matches/{{matchId}}/join"
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "Leave Match",
@@ -822,17 +693,10 @@
             "method": "DELETE",
             "header": [],
             "url": {
-              "raw": "{{apiBase}}/matches/{{matchId}}/leave",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "matches",
-                "{{matchId}}",
-                "leave"
-              ]
+              "raw": "{{apiBase}}/matches/{{matchId}}/leave"
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "Get Match Players",
@@ -840,27 +704,10 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{apiBase}}/matches/{{matchId}}/players?page=1&limit=20",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "matches",
-                "{{matchId}}",
-                "players"
-              ],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "1"
-                },
-                {
-                  "key": "limit",
-                  "value": "20"
-                }
-              ]
+              "raw": "{{apiBase}}/matches/{{matchId}}/players?page=1&limit=20"
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "Remove Player",
@@ -868,18 +715,10 @@
             "method": "DELETE",
             "header": [],
             "url": {
-              "raw": "{{apiBase}}/matches/{{matchId}}/players/{{otherUserId}}",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "matches",
-                "{{matchId}}",
-                "players",
-                "{{otherUserId}}"
-              ]
+              "raw": "{{apiBase}}/matches/{{matchId}}/players/{{otherUserId}}"
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "Update Match Status to Ongoing",
@@ -891,22 +730,20 @@
                 "value": "application/json"
               }
             ],
+            "url": {
+              "raw": "{{apiBase}}/matches/{{matchId}}/status"
+            },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"status\": \"ONGOING\"\n}"
-            },
-            "url": {
-              "raw": "{{apiBase}}/matches/{{matchId}}/status",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "matches",
-                "{{matchId}}",
-                "status"
-              ]
+              "raw": "{\n  \"status\": \"Ongoing\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "Update Match Status to Completed",
@@ -918,22 +755,20 @@
                 "value": "application/json"
               }
             ],
+            "url": {
+              "raw": "{{apiBase}}/matches/{{matchId}}/status"
+            },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"status\": \"COMPLETED\"\n}"
-            },
-            "url": {
-              "raw": "{{apiBase}}/matches/{{matchId}}/status",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "matches",
-                "{{matchId}}",
-                "status"
-              ]
+              "raw": "{\n  \"status\": \"Completed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "Update Match Status to Cancelled",
@@ -945,22 +780,20 @@
                 "value": "application/json"
               }
             ],
+            "url": {
+              "raw": "{{apiBase}}/matches/{{matchId}}/status"
+            },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"status\": \"CANCELLED\"\n}"
-            },
-            "url": {
-              "raw": "{{apiBase}}/matches/{{matchId}}/status",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "matches",
-                "{{matchId}}",
-                "status"
-              ]
+              "raw": "{\n  \"status\": \"Cancelled\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "Invite Player",
@@ -968,23 +801,10 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{apiBase}}/matches/{{matchId}}/invite?invited_user_id={{otherUserId}}",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "matches",
-                "{{matchId}}",
-                "invite"
-              ],
-              "query": [
-                {
-                  "key": "invited_user_id",
-                  "value": "{{otherUserId}}"
-                }
-              ]
+              "raw": "{{apiBase}}/matches/{{matchId}}/invite?invited_user_id={{otherUserId}}"
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "Get Match Messages",
@@ -992,27 +812,10 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{apiBase}}/matches/{{matchId}}/messages?page=1&limit=20",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "matches",
-                "{{matchId}}",
-                "messages"
-              ],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "1"
-                },
-                {
-                  "key": "limit",
-                  "value": "20"
-                }
-              ]
+              "raw": "{{apiBase}}/matches/{{matchId}}/messages?page=1&limit=20"
             }
-          }
+          },
+          "response": []
         }
       ]
     },
@@ -1021,43 +824,14 @@
       "item": [
         {
           "name": "Get Notifications",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "exec": [
-                  "const data = pm.response.json();",
-                  "if (data.items && data.items.length > 0) {",
-                  "  pm.collectionVariables.set('notificationId', data.items[0].id);",
-                  "}"
-                ],
-                "type": "text/javascript"
-              }
-            }
-          ],
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{apiBase}}/notifications?page=1&limit=20",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "notifications"
-              ],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "1"
-                },
-                {
-                  "key": "limit",
-                  "value": "20"
-                }
-              ]
+              "raw": "{{apiBase}}/notifications?page=1&limit=20"
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "Mark Notification Read",
@@ -1065,17 +839,10 @@
             "method": "PATCH",
             "header": [],
             "url": {
-              "raw": "{{apiBase}}/notifications/{{notificationId}}/read",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "notifications",
-                "{{notificationId}}",
-                "read"
-              ]
+              "raw": "{{apiBase}}/notifications/{{notificationId}}/read"
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "Mark All Notifications Read",
@@ -1083,16 +850,10 @@
             "method": "PATCH",
             "header": [],
             "url": {
-              "raw": "{{apiBase}}/notifications/read-all",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "notifications",
-                "read-all"
-              ]
+              "raw": "{{apiBase}}/notifications/read-all"
             }
-          }
+          },
+          "response": []
         }
       ]
     },
@@ -1105,85 +866,24 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{apiBase}}/admin/dashboard",
-              "host": [
-                "{{apiBase}}"
-              ],
-              "path": [
-                "admin",
-                "dashboard"
-              ]
+              "raw": "{{apiBase}}/admin/dashboard"
             }
-          }
+          },
+          "response": []
         },
         {
           "name": "Users",
           "item": [
             {
               "name": "List Users",
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "exec": [
-                      "const data = pm.response.json();",
-                      "if (data.items && data.items.length > 0) {",
-                      "  pm.collectionVariables.set('adminUserId', data.items[0].id);",
-                      "}",
-                      ""
-                    ],
-                    "type": "text/javascript"
-                  }
-                }
-              ],
               "request": {
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "{{apiBase}}/admin/users?search=&status=Active&sport=&date_from=&date_to=&location=&page=1&limit=20",
-                  "host": [
-                    "{{apiBase}}"
-                  ],
-                  "path": [
-                    "admin",
-                    "users"
-                  ],
-                  "query": [
-                    {
-                      "key": "search",
-                      "value": ""
-                    },
-                    {
-                      "key": "status",
-                      "value": "Active"
-                    },
-                    {
-                      "key": "sport",
-                      "value": ""
-                    },
-                    {
-                      "key": "date_from",
-                      "value": ""
-                    },
-                    {
-                      "key": "date_to",
-                      "value": ""
-                    },
-                    {
-                      "key": "location",
-                      "value": ""
-                    },
-                    {
-                      "key": "page",
-                      "value": "1"
-                    },
-                    {
-                      "key": "limit",
-                      "value": "20"
-                    }
-                  ]
+                  "raw": "{{apiBase}}/admin/users?search=&status=Active&sport=&date_from=&date_to=&location=&page=1&limit=20"
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Create User",
@@ -1195,21 +895,20 @@
                     "value": "application/json"
                   }
                 ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/users"
+                },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"full_name\": \"New Admin User\",\n  \"email\": \"new-admin-user@example.com\",\n  \"password\": \"Secure123\",\n  \"is_admin\": false\n}"
-                },
-                "url": {
-                  "raw": "{{apiBase}}/admin/users",
-                  "host": [
-                    "{{apiBase}}"
-                  ],
-                  "path": [
-                    "admin",
-                    "users"
-                  ]
+                  "raw": "{\n  \"full_name\": \"Admin Created User\",\n  \"email\": \"created.user@example.com\",\n  \"password\": \"Password1\",\n  \"is_admin\": false\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Get User Detail",
@@ -1217,17 +916,10 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "{{apiBase}}/admin/users/{{adminUserId}}",
-                  "host": [
-                    "{{apiBase}}"
-                  ],
-                  "path": [
-                    "admin",
-                    "users",
-                    "{{adminUserId}}"
-                  ]
+                  "raw": "{{apiBase}}/admin/users/{{adminUserId}}"
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Block Or Unblock User",
@@ -1235,18 +927,10 @@
                 "method": "PATCH",
                 "header": [],
                 "url": {
-                  "raw": "{{apiBase}}/admin/users/{{adminUserId}}/block",
-                  "host": [
-                    "{{apiBase}}"
-                  ],
-                  "path": [
-                    "admin",
-                    "users",
-                    "{{adminUserId}}",
-                    "block"
-                  ]
+                  "raw": "{{apiBase}}/admin/users/{{adminUserId}}/block"
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Delete User",
@@ -1254,17 +938,10 @@
                 "method": "DELETE",
                 "header": [],
                 "url": {
-                  "raw": "{{apiBase}}/admin/users/{{adminUserId}}",
-                  "host": [
-                    "{{apiBase}}"
-                  ],
-                  "path": [
-                    "admin",
-                    "users",
-                    "{{adminUserId}}"
-                  ]
+                  "raw": "{{apiBase}}/admin/users/{{adminUserId}}"
                 }
-              }
+              },
+              "response": []
             }
           ]
         },
@@ -1273,83 +950,14 @@
           "item": [
             {
               "name": "List Matches",
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "exec": [
-                      "const data = pm.response.json();",
-                      "if (data.items && data.items.length > 0) {",
-                      "  pm.collectionVariables.set('matchId', data.items[0].id);",
-                      "}",
-                      ""
-                    ],
-                    "type": "text/javascript"
-                  }
-                }
-              ],
               "request": {
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "{{apiBase}}/admin/matches?search=&location=&name=&date_from=&date_to=&page=1&limit=20",
-                  "host": [
-                    "{{apiBase}}"
-                  ],
-                  "path": [
-                    "admin",
-                    "matches"
-                  ],
-                  "query": [
-                    {
-                      "key": "search",
-                      "value": ""
-                    },
-                    {
-                      "key": "location",
-                      "value": ""
-                    },
-                    {
-                      "key": "name",
-                      "value": ""
-                    },
-                    {
-                      "key": "date_from",
-                      "value": ""
-                    },
-                    {
-                      "key": "date_to",
-                      "value": ""
-                    },
-                    {
-                      "key": "page",
-                      "value": "1"
-                    },
-                    {
-                      "key": "limit",
-                      "value": "20"
-                    }
-                  ]
+                  "raw": "{{apiBase}}/admin/matches?search=&location=&name=&date_from=&date_to=&page=1&limit=20"
                 }
-              }
-            },
-            {
-              "name": "Get Match Detail",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "{{apiBase}}/admin/matches/{{matchId}}",
-                  "host": [
-                    "{{apiBase}}"
-                  ],
-                  "path": [
-                    "admin",
-                    "matches",
-                    "{{matchId}}"
-                  ]
-                }
-              }
+              },
+              "response": []
             },
             {
               "name": "Update Match",
@@ -1361,22 +969,20 @@
                     "value": "application/json"
                   }
                 ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/matches/{{matchId}}"
+                },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"title\": \"Updated Match Title\",\n  \"description\": \"Updated by admin\",\n  \"facility_address\": \"Updated Sports Complex\",\n  \"scheduled_at\": \"2026-04-10T19:00:00Z\",\n  \"duration_minutes\": 120,\n  \"max_players\": 12,\n  \"skill_level\": \"Intermediate\"\n}"
-                },
-                "url": {
-                  "raw": "{{apiBase}}/admin/matches/{{matchId}}",
-                  "host": [
-                    "{{apiBase}}"
-                  ],
-                  "path": [
-                    "admin",
-                    "matches",
-                    "{{matchId}}"
-                  ]
+                  "raw": "{\n  \"title\": \"Admin Updated Match\",\n  \"facility_address\": \"National Sports Ground\",\n  \"location_name\": \"National Sports Ground\",\n  \"latitude\": 24.8607,\n  \"longitude\": 67.0011,\n  \"max_players\": 14\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Delete Match",
@@ -1384,17 +990,10 @@
                 "method": "DELETE",
                 "header": [],
                 "url": {
-                  "raw": "{{apiBase}}/admin/matches/{{matchId}}",
-                  "host": [
-                    "{{apiBase}}"
-                  ],
-                  "path": [
-                    "admin",
-                    "matches",
-                    "{{matchId}}"
-                  ]
+                  "raw": "{{apiBase}}/admin/matches/{{matchId}}"
                 }
-              }
+              },
+              "response": []
             }
           ]
         },
@@ -1403,94 +1002,14 @@
           "item": [
             {
               "name": "List Review Users",
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "exec": [
-                      "const data = pm.response.json();",
-                      "if (data.items && data.items.length > 0) {",
-                      "  pm.collectionVariables.set('adminUserId', data.items[0].id);",
-                      "}",
-                      ""
-                    ],
-                    "type": "text/javascript"
-                  }
-                }
-              ],
               "request": {
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "{{apiBase}}/admin/reviews/users?search=&page=1&limit=20",
-                  "host": [
-                    "{{apiBase}}"
-                  ],
-                  "path": [
-                    "admin",
-                    "reviews",
-                    "users"
-                  ],
-                  "query": [
-                    {
-                      "key": "search",
-                      "value": ""
-                    },
-                    {
-                      "key": "page",
-                      "value": "1"
-                    },
-                    {
-                      "key": "limit",
-                      "value": "20"
-                    }
-                  ]
+                  "raw": "{{apiBase}}/admin/reviews/users?search=&page=1&limit=20"
                 }
-              }
-            },
-            {
-              "name": "Get User Reviews",
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "exec": [
-                      "const data = pm.response.json();",
-                      "if (data.items && data.items.length > 0) {",
-                      "  pm.collectionVariables.set('reviewId', data.items[0].id);",
-                      "}",
-                      ""
-                    ],
-                    "type": "text/javascript"
-                  }
-                }
-              ],
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": {
-                  "raw": "{{apiBase}}/admin/reviews/users/{{adminUserId}}?page=1&limit=20",
-                  "host": [
-                    "{{apiBase}}"
-                  ],
-                  "path": [
-                    "admin",
-                    "reviews",
-                    "users",
-                    "{{adminUserId}}"
-                  ],
-                  "query": [
-                    {
-                      "key": "page",
-                      "value": "1"
-                    },
-                    {
-                      "key": "limit",
-                      "value": "20"
-                    }
-                  ]
-                }
-              }
+              },
+              "response": []
             },
             {
               "name": "Delete Review",
@@ -1498,17 +1017,10 @@
                 "method": "DELETE",
                 "header": [],
                 "url": {
-                  "raw": "{{apiBase}}/admin/reviews/{{reviewId}}",
-                  "host": [
-                    "{{apiBase}}"
-                  ],
-                  "path": [
-                    "admin",
-                    "reviews",
-                    "{{reviewId}}"
-                  ]
+                  "raw": "{{apiBase}}/admin/reviews/{{reviewId}}"
                 }
-              }
+              },
+              "response": []
             }
           ]
         },
@@ -1521,17 +1033,10 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "{{apiBase}}/admin/content/terms-of-service",
-                  "host": [
-                    "{{apiBase}}"
-                  ],
-                  "path": [
-                    "admin",
-                    "content",
-                    "terms-of-service"
-                  ]
+                  "raw": "{{apiBase}}/admin/content/terms-of-service"
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Update Terms Of Service",
@@ -1543,22 +1048,20 @@
                     "value": "application/json"
                   }
                 ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/content/terms-of-service"
+                },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"title\": \"Terms of Service\",\n  \"content\": \"Updated terms of service content for the admin CMS page.\"\n}"
-                },
-                "url": {
-                  "raw": "{{apiBase}}/admin/content/terms-of-service",
-                  "host": [
-                    "{{apiBase}}"
-                  ],
-                  "path": [
-                    "admin",
-                    "content",
-                    "terms-of-service"
-                  ]
+                  "raw": "{\n  \"title\": \"Terms of Service\",\n  \"content\": \"Updated terms content.\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Get Privacy Policy",
@@ -1566,17 +1069,10 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "{{apiBase}}/admin/content/privacy-policy",
-                  "host": [
-                    "{{apiBase}}"
-                  ],
-                  "path": [
-                    "admin",
-                    "content",
-                    "privacy-policy"
-                  ]
+                  "raw": "{{apiBase}}/admin/content/privacy-policy"
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Get Help Support",
@@ -1584,17 +1080,10 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "{{apiBase}}/admin/content/help-support",
-                  "host": [
-                    "{{apiBase}}"
-                  ],
-                  "path": [
-                    "admin",
-                    "content",
-                    "help-support"
-                  ]
+                  "raw": "{{apiBase}}/admin/content/help-support"
                 }
-              }
+              },
+              "response": []
             }
           ]
         },
@@ -1603,53 +1092,14 @@
           "item": [
             {
               "name": "List Support Requests",
-              "event": [
-                {
-                  "listen": "test",
-                  "script": {
-                    "exec": [
-                      "const data = pm.response.json();",
-                      "if (data.items && data.items.length > 0) {",
-                      "  pm.collectionVariables.set('supportRequestId', data.items[0].id);",
-                      "}",
-                      ""
-                    ],
-                    "type": "text/javascript"
-                  }
-                }
-              ],
               "request": {
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "{{apiBase}}/admin/support-requests?search=&status=&page=1&limit=20",
-                  "host": [
-                    "{{apiBase}}"
-                  ],
-                  "path": [
-                    "admin",
-                    "support-requests"
-                  ],
-                  "query": [
-                    {
-                      "key": "search",
-                      "value": ""
-                    },
-                    {
-                      "key": "status",
-                      "value": ""
-                    },
-                    {
-                      "key": "page",
-                      "value": "1"
-                    },
-                    {
-                      "key": "limit",
-                      "value": "20"
-                    }
-                  ]
+                  "raw": "{{apiBase}}/admin/support-requests?search=&status=&page=1&limit=20"
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Get Support Request Detail",
@@ -1657,17 +1107,10 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "{{apiBase}}/admin/support-requests/{{supportRequestId}}",
-                  "host": [
-                    "{{apiBase}}"
-                  ],
-                  "path": [
-                    "admin",
-                    "support-requests",
-                    "{{supportRequestId}}"
-                  ]
+                  "raw": "{{apiBase}}/admin/support-requests/{{supportRequestId}}"
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Resolve Support Request",
@@ -1675,18 +1118,10 @@
                 "method": "PATCH",
                 "header": [],
                 "url": {
-                  "raw": "{{apiBase}}/admin/support-requests/{{supportRequestId}}/resolve",
-                  "host": [
-                    "{{apiBase}}"
-                  ],
-                  "path": [
-                    "admin",
-                    "support-requests",
-                    "{{supportRequestId}}",
-                    "resolve"
-                  ]
+                  "raw": "{{apiBase}}/admin/support-requests/{{supportRequestId}}/resolve"
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Delete Support Request",
@@ -1694,17 +1129,10 @@
                 "method": "DELETE",
                 "header": [],
                 "url": {
-                  "raw": "{{apiBase}}/admin/support-requests/{{supportRequestId}}",
-                  "host": [
-                    "{{apiBase}}"
-                  ],
-                  "path": [
-                    "admin",
-                    "support-requests",
-                    "{{supportRequestId}}"
-                  ]
+                  "raw": "{{apiBase}}/admin/support-requests/{{supportRequestId}}"
                 }
-              }
+              },
+              "response": []
             }
           ]
         },
@@ -1717,16 +1145,10 @@
                 "method": "GET",
                 "header": [],
                 "url": {
-                  "raw": "{{apiBase}}/admin/account",
-                  "host": [
-                    "{{apiBase}}"
-                  ],
-                  "path": [
-                    "admin",
-                    "account"
-                  ]
+                  "raw": "{{apiBase}}/admin/account"
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Update Admin Account",
@@ -1738,21 +1160,20 @@
                     "value": "application/json"
                   }
                 ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/account"
+                },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"full_name\": \"Admin User\",\n  \"email\": \"admin@sportsplatform.com\",\n  \"phone\": \"+1234567890\"\n}"
-                },
-                "url": {
-                  "raw": "{{apiBase}}/admin/account",
-                  "host": [
-                    "{{apiBase}}"
-                  ],
-                  "path": [
-                    "admin",
-                    "account"
-                  ]
+                  "raw": "{\n  \"full_name\": \"Admin User\",\n  \"email\": \"admin@example.com\",\n  \"phone\": \"+923001112233\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 }
-              }
+              },
+              "response": []
             },
             {
               "name": "Change Admin Password",
@@ -1764,24 +1185,57 @@
                     "value": "application/json"
                   }
                 ],
+                "url": {
+                  "raw": "{{apiBase}}/admin/account/password"
+                },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"current_password\": \"Secure123\",\n  \"new_password\": \"NewSecure456\",\n  \"confirm_new_password\": \"NewSecure456\"\n}"
-                },
-                "url": {
-                  "raw": "{{apiBase}}/admin/account/password",
-                  "host": [
-                    "{{apiBase}}"
-                  ],
-                  "path": [
-                    "admin",
-                    "account",
-                    "password"
-                  ]
+                  "raw": "{\n  \"current_password\": \"Password1\",\n  \"new_password\": \"Password2\",\n  \"confirm_new_password\": \"Password2\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
                 }
-              }
+              },
+              "response": []
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "Chat",
+      "item": [
+        {
+          "name": "Get Match Messages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/matches/{{matchId}}/messages?page=1&limit=20"
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Options",
+      "item": [
+        {
+          "name": "Get Options",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{apiBase}}/options/"
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
         }
       ]
     }
