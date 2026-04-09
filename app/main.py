@@ -65,37 +65,34 @@ uploads_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
 
 # ─── CORS ─────────────────────────────────────────────────────────────────────
-# Development: allow all origins
-# Production: allow only known frontend origins
-ALLOWED_ORIGINS = (
-    ["*"]
-    if settings.debug
-    else [
-        # Production domains
-        "https://sportfinding.com",
-        "https://www.sportfinding.com",
-        "https://admin.sportfinding.com",
-        "https://api.sportfinding.com",
-        # Flutter web development
-        "http://localhost:3000",
-        "http://localhost:8080",
-        "http://localhost:52000",
-        "http://localhost:5000",
-        # Allow any localhost port for Flutter web testing
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:8080",
-        "http://127.0.0.1:52000",
-        "http://127.0.0.1:5000",
-    ]
-)
+# Development: allow all origins via debug mode
+# Production: allow known domains + all localhost ports for Flutter web dev
+#
+# We use allow_origin_regex to handle Flutter web's random localhost ports
+# e.g. http://localhost:51929, http://localhost:64832 etc.
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+if settings.debug:
+    # Development — allow everything
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    # Production — allow known domains + any localhost port
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=(
+            r"https://(.*\.)?sportfinding\.com"        # all sportfinding.com subdomains
+            r"|http://localhost:\d+"                    # any localhost port
+            r"|http://127\.0\.0\.1:\d+"                # any 127.0.0.1 port
+        ),
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # ─── Middleware ───────────────────────────────────────────────────────────────
 app.add_middleware(SlowAPIMiddleware)
