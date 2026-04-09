@@ -28,7 +28,6 @@ def upgrade() -> None:
     sa.Column('bio', sa.String(length=500), nullable=True),
     sa.Column('location', sa.String(length=100), nullable=True),
     sa.Column('avatar_url', sa.String(), nullable=True),
-    sa.Column('phone_number', sa.String(length=20), nullable=True),
     sa.Column('avg_rating', sa.Float(), server_default=sa.text('0'), nullable=False),
     sa.Column('total_games_played', sa.Integer(), server_default=sa.text('0'), nullable=False),
     sa.Column('status', sa.Enum('PENDING_VERIFICATION', 'ACTIVE', 'BLOCKED', name='user_status'), server_default=sa.text("'PENDING_VERIFICATION'"), nullable=False),
@@ -39,12 +38,10 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.CheckConstraint('avg_rating >= 0 AND avg_rating <= 5', name='ck_users_avg_rating_range'),
     sa.CheckConstraint('length(btrim(full_name)) >= 2', name='ck_users_full_name_not_blank'),
-    sa.CheckConstraint('phone_number IS NULL OR length(btrim(phone_number)) >= 7', name='ck_users_phone_number_length'),
     sa.CheckConstraint('total_games_played >= 0', name='ck_users_total_games_played_non_negative'),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('email'),
-    sa.UniqueConstraint('google_id'),
-    sa.UniqueConstraint('phone_number')
+    sa.UniqueConstraint('google_id')
     )
     op.create_table('follows',
     sa.Column('follower_id', sa.UUID(), nullable=False),

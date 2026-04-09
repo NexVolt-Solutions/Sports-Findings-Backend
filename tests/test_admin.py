@@ -34,7 +34,6 @@ async def make_user(
     is_admin: bool = False,
     status: UserStatus = UserStatus.ACTIVE,
     location: str | None = None,
-    phone: str | None = None,
     created_at: datetime | None = None,
     total_games_played: int = 0,
 ) -> tuple[User, str]:
@@ -45,7 +44,6 @@ async def make_user(
         status=status,
         is_admin=is_admin,
         location=location,
-        phone_number=phone,
         total_games_played=total_games_played,
     )
     db.add(user)
@@ -454,7 +452,6 @@ async def test_admin_account_get_and_update(client: AsyncClient, db_session: Asy
         "account_admin@example.com",
         is_admin=True,
         name="Admin User",
-        phone="+1234567890",
     )
 
     get_response = await client.get("/api/v1/admin/account", headers=auth(admin_token))
@@ -466,7 +463,6 @@ async def test_admin_account_get_and_update(client: AsyncClient, db_session: Asy
         json={
             "full_name": "Updated Admin",
             "email": "account_admin@example.com",
-            "phone": "+19876543210",
         },
         headers=auth(admin_token),
     )
@@ -474,7 +470,6 @@ async def test_admin_account_get_and_update(client: AsyncClient, db_session: Asy
 
     verify_response = await client.get("/api/v1/admin/account", headers=auth(admin_token))
     assert verify_response.json()["full_name"] == "Updated Admin"
-    assert verify_response.json()["phone"] == "+19876543210"
 
 
 async def test_admin_change_password_requires_confirmation(client: AsyncClient, db_session: AsyncSession):

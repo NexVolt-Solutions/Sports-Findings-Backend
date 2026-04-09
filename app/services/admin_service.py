@@ -96,6 +96,7 @@ def _validate_content_section(section: str) -> str:
 
 
 def _build_match_detail_response(match: Match, current_players: int) -> MatchDetailResponse:
+    location = match.location_name or match.facility_address
     return MatchDetailResponse(
         id=match.id,
         title=match.title,
@@ -105,8 +106,11 @@ def _build_match_detail_response(match: Match, current_players: int) -> MatchDet
         status=match.status,
         scheduled_at=match.scheduled_at,
         duration_minutes=match.duration_minutes,
+        scheduled_date=match.scheduled_at.strftime("%Y-%m-%d"),
+        scheduled_time=match.scheduled_at.strftime("%H:%M"),
         facility_address=match.facility_address,
         location_name=match.location_name,
+        location=location,
         latitude=match.latitude,
         longitude=match.longitude,
         max_players=match.max_players,
@@ -281,7 +285,6 @@ async def create_user(payload: CreateUserRequest, db: AsyncSession) -> AdminUser
         id=user.id,
         full_name=user.full_name,
         email=user.email,
-        phone=user.phone_number,
         location=user.location,
         status=_map_user_status_for_ui(user.status),
         matches=user.total_games_played,
@@ -296,7 +299,6 @@ async def get_user(user_id: uuid.UUID, db: AsyncSession) -> AdminUserDetailRespo
         id=user.id,
         full_name=user.full_name,
         email=user.email,
-        phone=user.phone_number,
         location=user.location,
         status=_map_user_status_for_ui(user.status),
         matches=user.total_games_played,
@@ -689,7 +691,6 @@ async def get_admin_account(admin: User) -> AdminAccountResponse:
     return AdminAccountResponse(
         full_name=admin.full_name,
         email=admin.email,
-        phone=admin.phone_number,
     )
 
 
@@ -704,17 +705,8 @@ async def update_admin_account(
     if email_owner:
         raise conflict(f"A user with email '{payload.email}' already exists.")
 
-    phone_owner = None
-    if payload.phone:
-        phone_owner = (await db.execute(
-            select(User).where(User.phone_number == payload.phone, User.id != admin.id)
-        )).scalar_one_or_none()
-    if phone_owner:
-        raise conflict(f"A user with phone '{payload.phone}' already exists.")
-
     admin.full_name = payload.full_name
     admin.email = payload.email.lower()
-    admin.phone_number = payload.phone
     await db.commit()
     return MessageResponse(message="Admin profile updated successfully.")
 

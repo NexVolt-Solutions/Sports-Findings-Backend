@@ -113,17 +113,6 @@ async def update_profile(
         user.bio = payload.bio.strip()
     if payload.location is not None:
         user.location = payload.location.strip()
-    if payload.phone_number is not None:
-        normalized_phone = payload.phone_number.strip()
-        existing_phone = await db.execute(
-            select(User).where(
-                User.phone_number == normalized_phone,
-                User.id != user.id,
-            )
-        )
-        if existing_phone.scalar_one_or_none():
-            raise conflict("Phone number is already in use")
-        user.phone_number = normalized_phone
     if payload.avatar_url is not None:
         user.avatar_url = payload.avatar_url.strip()
     if avatar_file is not None:

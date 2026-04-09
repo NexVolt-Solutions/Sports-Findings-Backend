@@ -83,7 +83,6 @@ class AdminUserDetailResponse(BaseModel):
     id: uuid.UUID
     full_name: str
     email: str
-    phone: str | None
     location: str | None
     status: str
     matches: int
@@ -162,13 +161,11 @@ class SupportRequestDetailResponse(BaseModel):
 class AdminAccountResponse(BaseModel):
     full_name: str
     email: str
-    phone: str | None
 
 
 class UpdateAdminAccountRequest(BaseModel):
     full_name: str
     email: str
-    phone: str | None = None
 
     @field_validator("full_name")
     @classmethod
@@ -185,17 +182,6 @@ class UpdateAdminAccountRequest(BaseModel):
         if "@" not in v or "." not in v:
             raise ValueError("Please enter a valid email address")
         return v
-
-    @field_validator("phone")
-    @classmethod
-    def validate_phone(cls, v: str | None) -> str | None:
-        if v is None:
-            return v
-        v = v.strip()
-        if v and len(v) < 7:
-            raise ValueError("Phone number must be at least 7 characters")
-        return v or None
-
 
 class ChangePasswordRequest(BaseModel):
     current_password: str

@@ -25,10 +25,6 @@ class User(UUIDMixin, TimestampMixin, Base):
         CheckConstraint("avg_rating >= 0 AND avg_rating <= 5", name="ck_users_avg_rating_range"),
         CheckConstraint("total_games_played >= 0", name="ck_users_total_games_played_non_negative"),
         CheckConstraint("length(btrim(full_name)) >= 2", name="ck_users_full_name_not_blank"),
-        CheckConstraint(
-            "phone_number IS NULL OR length(btrim(phone_number)) >= 7",
-            name="ck_users_phone_number_length",
-        ),
     )
 
     # ─── Identity ─────────────────────────────────────────────────────────────
@@ -47,11 +43,6 @@ class User(UUIDMixin, TimestampMixin, Base):
     bio: Mapped[str | None] = mapped_column(String(500), nullable=True)
     location: Mapped[str | None] = mapped_column(String(100), nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
-    phone_number: Mapped[str | None] = mapped_column(
-        String(20),
-        unique=True,
-        nullable=True,
-    )
 
     # ─── Stats ────────────────────────────────────────────────────────────────
     avg_rating: Mapped[float] = mapped_column(

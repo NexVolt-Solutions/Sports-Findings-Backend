@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, BackgroundTasks, Form, UploadFile, File,
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 import re
+from pydantic import EmailStr
 
 from app.database import get_db
 from app.schemas.auth import (
@@ -26,7 +27,7 @@ async def register(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     full_name: str = Form(...),
-    email: str = Form(...),
+    email: EmailStr = Form(...),
     password: str = Form(...),
     confirm_password: str = Form(...),
     accept_terms: bool = Form(...),

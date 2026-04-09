@@ -37,7 +37,6 @@ class UserResponse(BaseModel):
     id: uuid.UUID
     full_name: str
     email: str
-    phone_number: str | None
     bio: str | None
     location: str | None
     avatar_url: str | None
@@ -91,7 +90,6 @@ class UpdateProfileRequest(BaseModel):
     full_name: str | None = None
     bio: str | None = None
     location: str | None = None
-    phone_number: str | None = None
     avatar_url: str | None = None
     sports: list[UserSportRequest] | None = None
 

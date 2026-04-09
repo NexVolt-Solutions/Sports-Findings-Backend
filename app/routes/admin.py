@@ -140,6 +140,16 @@ async def list_review_users(
     return await admin_service.list_review_users(search, pagination, db)
 
 
+@router.get("/reviews/users/{user_id}", response_model=ReviewModerationUserReviewsResponse)
+async def get_review_user_reviews(
+    user_id: uuid.UUID,
+    pagination: PaginationParams = Depends(),
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    return await admin_service.get_review_user_reviews(user_id, pagination, db)
+
+
 @router.delete("/reviews/{review_id}", response_model=MessageResponse)
 async def delete_review(
     review_id: uuid.UUID,

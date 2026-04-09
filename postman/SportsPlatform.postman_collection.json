@@ -415,7 +415,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"full_name\": \"Amna Ali\",\n  \"bio\": \"Weekend cricket player\",\n  \"location\": \"Lahore\",\n  \"phone_number\": \"+923001112233\",\n  \"avatar_url\": \"https://example.com/avatar.jpg\",\n  \"sports\": [\n    {\n      \"sport\": \"Cricket\",\n      \"skill_level\": \"Intermediate\"\n    },\n    {\n      \"sport\": \"Badminton\",\n      \"skill_level\": \"Beginner\"\n    }\n  ]\n}",
+              "raw": "{\n  \"full_name\": \"Amna Ali\",\n  \"bio\": \"Weekend cricket player\",\n  \"location\": \"Lahore\",\n  \"avatar_url\": \"https://example.com/avatar.jpg\",\n  \"sports\": [\n    {\n      \"sport\": \"Cricket\",\n      \"skill_level\": \"Intermediate\"\n    },\n    {\n      \"sport\": \"Badminton\",\n      \"skill_level\": \"Beginner\"\n    }\n  ]\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -450,11 +450,6 @@
                 {
                   "key": "location",
                   "value": "Lahore",
-                  "type": "text"
-                },
-                {
-                  "key": "phone_number",
-                  "value": "+923001112233",
                   "type": "text"
                 },
                 {
@@ -1165,7 +1160,7 @@
                 },
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"full_name\": \"Admin User\",\n  \"email\": \"admin@example.com\",\n  \"phone\": \"+923001112233\"\n}",
+                  "raw": "{\n  \"full_name\": \"Admin User\",\n  \"email\": \"admin@example.com\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"

@@ -69,7 +69,6 @@ async def _parse_update_profile_request(request: Request) -> tuple[UpdateProfile
                 "full_name": _read_optional_form_value(form, "full_name"),
                 "bio": _read_optional_form_value(form, "bio"),
                 "location": _read_optional_form_value(form, "location"),
-                "phone_number": _read_optional_form_value(form, "phone_number"),
                 "avatar_url": _read_optional_form_value(form, "avatar_url"),
                 "sports": sports,
             }
