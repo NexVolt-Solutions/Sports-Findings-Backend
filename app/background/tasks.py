@@ -21,12 +21,14 @@ def _mail_config() -> ConnectionConfig:
         MAIL_USERNAME=settings.mail_username,
         MAIL_PASSWORD=settings.mail_password,
         MAIL_FROM=settings.mail_from,
+        MAIL_FROM_NAME=settings.app_name,
         MAIL_PORT=settings.mail_port,
         MAIL_SERVER=settings.mail_server,
         MAIL_STARTTLS=settings.mail_starttls,
         MAIL_SSL_TLS=settings.mail_ssl_tls,
         USE_CREDENTIALS=True,
         VALIDATE_CERTS=True,
+        TIMEOUT=60,
     )
 
 
@@ -50,24 +52,27 @@ async def send_verification_email(user_id: UUID, email: str, otp: str) -> None:
         recipients=[email],
         body=(
             f"Welcome to {settings.app_name}.\n\n"
-            "Use this 6-digit OTP to verify your email address:\n"
-            f"{otp}\n\n"
+            "Use this 6-digit OTP to verify your email address:\n\n"
+            f"    {otp}\n\n"
             "This OTP will expire in 10 minutes.\n\n"
-            "If you did not create this account, you can ignore this email."
+            "If you did not create this account, you can ignore this email.\n\n"
+            f"- The {settings.app_name} Team"
         ),
         subtype=MessageType.plain,
     )
 
     try:
-        await FastMail(_mail_config()).send_message(message)
-        logger.info(f"[TASK] send_verification_email sent successfully -> email={email}")
+        fm = FastMail(_mail_config())
+        await fm.send_message(message)
+        logger.info(
+            f"[TASK] send_verification_email sent successfully -> email={email}"
+        )
     except Exception as e:
         logger.error(
-            f"[TASK] send_verification_email failed for user={user_id} email={email}: {e}"
+            f"[TASK] send_verification_email failed for user={user_id} "
+            f"email={email}: {e}"
         )
     finally:
-        # Never log OTPs in normal operation. If you absolutely need it for local
-        # troubleshooting, enable allow_secret_logging explicitly.
         if settings.allow_secret_logging:
             logger.info(f"[DEV] verification_otp={otp}")
 
@@ -89,22 +94,28 @@ async def send_password_reset_email(user_id: UUID, email: str, token: str) -> No
         recipients=[email],
         body=(
             f"We received a request to reset your {settings.app_name} password.\n\n"
-            "Use this link to set a new password:\n"
-            f"{reset_url}\n\n"
-            "If you did not request this, you can ignore this email."
+            "Click the link below to set a new password:\n\n"
+            f"    {reset_url}\n\n"
+            "This link will expire in 15 minutes.\n\n"
+            "If you did not request a password reset, "
+            "you can safely ignore this email.\n\n"
+            f"- The {settings.app_name} Team"
         ),
         subtype=MessageType.plain,
     )
 
     try:
-        await FastMail(_mail_config()).send_message(message)
-        logger.info(f"[TASK] send_password_reset_email sent successfully -> email={email}")
+        fm = FastMail(_mail_config())
+        await fm.send_message(message)
+        logger.info(
+            f"[TASK] send_password_reset_email sent successfully -> email={email}"
+        )
     except Exception as e:
         logger.error(
-            f"[TASK] send_password_reset_email failed for user={user_id} email={email}: {e}"
+            f"[TASK] send_password_reset_email failed for user={user_id} "
+            f"email={email}: {e}"
         )
     finally:
-        # Never log password reset URLs in normal operation.
         if settings.allow_secret_logging:
             logger.info(f"[DEV] reset_url={reset_url}")
 
@@ -113,11 +124,12 @@ async def geocode_match_address(match_id: UUID, address: str) -> None:
     """
     Geocode a match facility address using Google Maps Geocoding API.
     Updates match.latitude, match.longitude in DB.
-
     Called as a background task after match creation or address update.
     Never raises - logs warning on failure so the match is not affected.
     """
-    logger.info(f"[TASK] geocode_match_address -> match={match_id} address={address!r}")
+    logger.info(
+        f"[TASK] geocode_match_address -> match={match_id} address={address!r}"
+    )
 
     try:
         from app.utils.geocoding import geocode_address
@@ -135,7 +147,9 @@ async def geocode_match_address(match_id: UUID, address: str) -> None:
             return
 
         async with AsyncSessionLocal() as db:
-            match_result = await db.execute(select(Match).where(Match.id == match_id))
+            match_result = await db.execute(
+                select(Match).where(Match.id == match_id)
+            )
             match = match_result.scalar_one_or_none()
             if match:
                 match.latitude = result.latitude
@@ -148,7 +162,9 @@ async def geocode_match_address(match_id: UUID, address: str) -> None:
                 )
 
     except Exception as e:
-        logger.error(f"[TASK] geocode_match_address failed for match={match_id}: {e}")
+        logger.error(
+            f"[TASK] geocode_match_address failed for match={match_id}: {e}"
+        )
 
 
 async def send_match_joined_notification(
@@ -158,7 +174,6 @@ async def send_match_joined_notification(
 ) -> None:
     """
     Notify the match host when a new player joins their match.
-
     Steps:
     1. Create Notification record (type=MATCH_JOINED)
     2. Push to host's WebSocket channel via ws_manager
@@ -196,7 +211,9 @@ async def send_match_joined_notification(
         })
 
     except Exception as e:
-        logger.error(f"[TASK] send_match_joined_notification failed: {e}")
+        logger.error(
+            f"[TASK] send_match_joined_notification failed: {e}"
+        )
 
 
 async def send_match_started_notification(
@@ -237,7 +254,9 @@ async def send_match_started_notification(
             })
 
     except Exception as e:
-        logger.error(f"[TASK] send_match_started_notification failed: {e}")
+        logger.error(
+            f"[TASK] send_match_started_notification failed: {e}"
+        )
 
 
 async def send_player_removed_notification(
@@ -276,7 +295,9 @@ async def send_player_removed_notification(
         })
 
     except Exception as e:
-        logger.error(f"[TASK] send_player_removed_notification failed: {e}")
+        logger.error(
+            f"[TASK] send_player_removed_notification failed: {e}"
+        )
 
 
 async def send_new_follower_notification(
@@ -286,7 +307,6 @@ async def send_new_follower_notification(
 ) -> None:
     """
     Notify a user when someone follows them.
-
     Steps:
     1. Create Notification record (type=NEW_FOLLOWER)
     2. Push to following user's WebSocket channel via ws_manager
@@ -324,7 +344,9 @@ async def send_new_follower_notification(
         })
 
     except Exception as e:
-        logger.error(f"[TASK] send_new_follower_notification failed: {e}")
+        logger.error(
+            f"[TASK] send_new_follower_notification failed: {e}"
+        )
 
 
 async def update_games_played(player_ids: list[UUID]) -> None:
@@ -345,7 +367,10 @@ async def update_games_played(player_ids: list[UUID]) -> None:
                 .values(total_games_played=User.total_games_played + 1)
             )
             await db.commit()
-            logger.info(f"[TASK] update_games_played: incremented for {len(player_ids)} players")
+            logger.info(
+                f"[TASK] update_games_played: incremented for "
+                f"{len(player_ids)} players"
+            )
 
     except Exception as e:
         logger.error(f"[TASK] update_games_played failed: {e}")
@@ -365,7 +390,9 @@ async def update_user_avg_rating(reviewee_id: UUID) -> None:
 
         async with AsyncSessionLocal() as db:
             result = await db.execute(
-                select(func.avg(Review.rating)).where(Review.reviewee_id == reviewee_id)
+                select(func.avg(Review.rating)).where(
+                    Review.reviewee_id == reviewee_id
+                )
             )
             avg = result.scalar_one_or_none() or 0.0
 
@@ -375,7 +402,10 @@ async def update_user_avg_rating(reviewee_id: UUID) -> None:
                 .values(avg_rating=round(float(avg), 2))
             )
             await db.commit()
-            logger.info(f"[TASK] update_user_avg_rating: user={reviewee_id} -> avg={avg:.2f}")
+            logger.info(
+                f"[TASK] update_user_avg_rating: user={reviewee_id} "
+                f"-> avg={avg:.2f}"
+            )
 
     except Exception as e:
         logger.error(f"[TASK] update_user_avg_rating failed: {e}")
@@ -392,7 +422,9 @@ async def persist_chat_message(
     Called after broadcasting - never raises (must not crash WebSocket handler).
     Phase 4.
     """
-    logger.info(f"[TASK] persist_chat_message -> match={match_id} sender={sender_id}")
+    logger.info(
+        f"[TASK] persist_chat_message -> match={match_id} sender={sender_id}"
+    )
     try:
         from app.database import AsyncSessionLocal
         from app.models.message import Message

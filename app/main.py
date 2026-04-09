@@ -32,7 +32,10 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["60/minute"])
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup: verify DB connection. Shutdown: dispose engine pool."""
-    logger.info(f"Starting {settings.app_name} v{settings.app_version} [{settings.environment}]")
+    logger.info(
+        f"Starting {settings.app_name} v{settings.app_version} "
+        f"[{settings.environment}]"
+    )
     try:
         async with engine.connect() as conn:
             logger.info("Database connection verified")
@@ -61,17 +64,40 @@ uploads_dir = Path(settings.uploads_dir)
 uploads_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
 
-# ─── Middleware ───────────────────────────────────────────────────────────────
+# ─── CORS ─────────────────────────────────────────────────────────────────────
+# Development: allow all origins
+# Production: allow only known frontend origins
+ALLOWED_ORIGINS = (
+    ["*"]
+    if settings.debug
+    else [
+        # Production domains
+        "https://sportfinding.com",
+        "https://www.sportfinding.com",
+        "https://admin.sportfinding.com",
+        "https://api.sportfinding.com",
+        # Flutter web development
+        "http://localhost:3000",
+        "http://localhost:8080",
+        "http://localhost:52000",
+        "http://localhost:5000",
+        # Allow any localhost port for Flutter web testing
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:8080",
+        "http://127.0.0.1:52000",
+        "http://127.0.0.1:5000",
+    ]
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.debug else [
-        "https://admin.sportsplatform.com",
-        "https://sportsplatform.com",
-    ],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ─── Middleware ───────────────────────────────────────────────────────────────
 app.add_middleware(SlowAPIMiddleware)
 app.add_middleware(RequestLoggingMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
@@ -117,20 +143,23 @@ API_PREFIX = "/api/v1"
 app.include_router(auth.router,          prefix=API_PREFIX)
 app.include_router(users.router,         prefix=API_PREFIX)
 app.include_router(matches.router,       prefix=API_PREFIX)
-app.include_router(notifications.router, prefix=API_PREFIX)   # REST: /api/v1/notifications/*
+app.include_router(notifications.router, prefix=API_PREFIX)
 app.include_router(admin.router,         prefix=API_PREFIX)
-app.include_router(chat.router,          prefix=API_PREFIX)   # REST: GET /api/v1/matches/{id}/messages
-app.include_router(options.router,       prefix=API_PREFIX)   # REST: /api/v1/options/*
+app.include_router(chat.router,          prefix=API_PREFIX)
+app.include_router(options.router,       prefix=API_PREFIX)
 
 
 # ─── WebSocket Routers (no /api/v1 prefix) ───────────────────────────────────
 # WebSocket paths are clean, connection-level paths — no REST versioning.
 #
-#   WS  /ws/matches/{match_id}/chat    ← chat.ws_router
-#   WS  /ws/notifications              ← notifications.ws_router
+#   WS  /ws/matches/{match_id}/chat    <- chat.ws_router
+#   WS  /ws/notifications              <- notifications.ws_router
 
-app.include_router(chat.ws_router)            # WS: /ws/matches/{match_id}/chat
-app.include_router(notifications.ws_router)   # WS: /ws/notifications
+app.include_router(chat.ws_router)
+app.include_router(notifications.ws_router)
 
 
-logger.info(f"Application startup complete — {len(app.routes)} routes registered")
+logger.info(
+    f"Application startup complete — {len(app.routes)} routes registered"
+)
+
