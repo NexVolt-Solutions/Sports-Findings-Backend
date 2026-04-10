@@ -359,7 +359,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"token\": \"RESET_TOKEN_HERE\",\n  \"new_password\": \"Password2\"\n}",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"otp\": \"123456\",\n  \"new_password\": \"Password2\"\n}",
               "options": {
                 "raw": {
                   "language": "json"

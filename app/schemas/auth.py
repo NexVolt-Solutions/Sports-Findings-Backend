@@ -81,8 +81,17 @@ class ForgotPasswordRequest(BaseModel):
 
 
 class ResetPasswordRequest(BaseModel):
-    token: str
+    email: EmailStr
+    otp: str
     new_password: str
+
+    @field_validator("otp")
+    @classmethod
+    def validate_otp(cls, v: str) -> str:
+        otp = v.strip()
+        if not re.fullmatch(r"\d{6}", otp):
+            raise ValueError("OTP must be exactly 6 digits")
+        return otp
 
     @field_validator("new_password")
     @classmethod
@@ -94,5 +103,3 @@ class ResetPasswordRequest(BaseModel):
         if not re.search(r"\d", v):
             raise ValueError("Password must contain at least one number")
         return v
-        
-        

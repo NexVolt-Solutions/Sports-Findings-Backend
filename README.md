@@ -178,7 +178,7 @@ All REST endpoints are versioned under `/api/v1`:
 - `POST /verify-email` — Verify email with OTP
 - `POST /resend-verification-otp` — Resend verification OTP
 - `POST /forgot-password` — Request password reset email
-- `POST /reset-password` — Reset password with token
+- `POST /reset-password` — Reset password with OTP
 
 #### **Users** (`/api/v1/users`)
 - `GET /me` — Get authenticated user's profile
@@ -400,7 +400,7 @@ The project follows a phased development approach:
 - [x] Service layer with business logic
 - [x] User registration with email verification (OTP-based)
 - [x] Login with email/password and JWT tokens
-- [x] Password reset flow with email tokens
+- [x] Password reset flow with email OTPs
 - [x] Google OAuth authentication integration
 - [x] Token refresh mechanism
 - [x] Alembic database migrations setup

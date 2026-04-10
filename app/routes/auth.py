@@ -180,7 +180,5 @@ async def reset_password(
     payload: ResetPasswordRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """Reset the user's password using a valid reset token."""
-    return await auth_service.reset_password(payload.token, payload.new_password, db)
-    
-    
+    """Reset the user's password using a valid reset OTP."""
+    return await auth_service.reset_password(payload.email, payload.otp, payload.new_password, db)
