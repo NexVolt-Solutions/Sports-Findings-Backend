@@ -111,6 +111,7 @@ IMPLEMENTATION_CHECKLIST.md
 IMPLEMENTATION_SUMMARY.txt
 DEPLOYMENT_CHECKLIST.md
 DOCUMENTATION_INDEX.md
+CONTENT_PAGES_SUMMARY.md
 
 # ─── Test & validation scripts (Development only) ──────────────────────────
 test_imports.py

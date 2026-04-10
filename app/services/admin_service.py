@@ -55,7 +55,111 @@ CONTENT_SECTIONS = {
     "help-support": "Help & Support",
 }
 
+# Default content for each section
+DEFAULT_CONTENT = {
+    "terms-of-service": """Terms & Conditions
+Use SportFinding Responsibly
+By using this app, you agree to follow our rules and enjoy safe, fair play.
 
+1. Account Responsibility
+Users must provide accurate information when creating an account.
+Keep your login credentials secure; you are responsible for all activity under your account.
+
+2. App Usage Rules
+Use the app only for connecting with players, joining matches, and related sports activities.
+Do not use the app for spam, harassment, or illegal purposes.
+Respect other users and follow community guidelines.
+
+3. Intellectual Property & Content
+All content, logos, and designs in the app are owned by SportFinding.
+Users may not copy, distribute, or modify app content without permission.
+
+4. Limitation of Liability
+SportFinding is not responsible for accidents, injuries, or disputes between users.
+We provide the app "as is" and do not guarantee availability at all times.
+
+5. Contact Us
+If you have questions about your privacy or this policy, reach us at:
+
+Email: privacy@sportfinding.com
+
+Last updated: March 2026""",
+    
+    "privacy-policy": """Privacy Policy
+Your Privacy Matters
+We respect your data and keep it safe while you enjoy connecting with players and matches.
+
+1. Information We Collect
+Personal Information: Name, email, phone number, password, profile photo, skill level, sports preferences.
+Usage Data: App interactions, matches joined/created, notifications, chat messages.
+Location Data: To show nearby matches and players (only with your permission).
+
+2. How We Use Your Information
+To provide and improve app services.
+To connect you with nearby players and sports matches.
+To communicate about your matches, updates, or support requests.
+To ensure security and prevent misuse.
+
+3. Sharing & Security
+We never sell your personal data to third parties.
+Data may be shared only with trusted partners for app functionality.
+We use industry-standard security measures to protect your information.
+
+4. Your Choices
+You can update or delete your account anytime.
+You can control which notifications or location access you allow.
+
+5. Contact Us
+If you have questions about your privacy or this policy, reach us at:
+
+Email: privacy@sportfinding.com
+
+Last updated: March 2026""",
+    
+    "help-support": """HELP & SUPPORT
+
+Last Updated: April 10, 2026
+
+FREQUENTLY ASKED QUESTIONS
+
+1. HOW DO I CREATE AN ACCOUNT?
+Download the Sports Platform app, enter your email and password, verify your email with the OTP sent to your inbox, and complete your profile.
+
+2. HOW DO I FIND MATCHES?
+Use the "Discover" feature to browse nearby matches. Filter by sport, distance, skill level, and date to find matches that suit you.
+
+3. HOW DO I JOIN A MATCH?
+Find a match in the Discover section and click "Join". The match host will confirm your participation.
+
+4. WHAT IS THE REVIEW SYSTEM?
+After a match is completed, participants can review each other. Reviews include a 1-5 star rating and optional comments. Ratings help build credibility.
+
+5. HOW DO I RESET MY PASSWORD?
+Click "Forgot Password" on the login screen, enter your email, receive an OTP, enter the OTP and set a new password.
+
+6. CAN I DELETE MY ACCOUNT?
+Yes, you can delete your account from Settings > Account Management. This action cannot be undone.
+
+7. WHAT PAYMENT METHODS DO YOU ACCEPT?
+Currently, the Platform is free to use. Premium features may be added in the future.
+
+8. HOW DO I REPORT A USER?
+Click on a user's profile and select "Report User". Provide details about the issue. Our support team will review it.
+
+9. WHAT IF I HAVE TECHNICAL ISSUES?
+Check our troubleshooting guide or contact support at support@sportsplatform.com with screenshots and details.
+
+10. HOW OFTEN IS THE APP UPDATED?
+We release updates regularly. Check your app store for the latest version.
+
+CONTACTING SUPPORT
+
+Email: support@sportsplatform.com
+Response Time: 24-48 hours
+Hours: Monday - Friday, 9 AM - 6 PM (UTC)
+
+For urgent issues, please email with "URGENT:" in the subject line.""",
+}
 def _map_user_status_for_ui(status: UserStatus) -> str:
     if status == UserStatus.ACTIVE:
         return "Active"
@@ -579,7 +683,7 @@ async def get_content_page(section: str, db: AsyncSession) -> ContentPageRespons
         page = ContentPage(
             section=section,
             title=CONTENT_SECTIONS[section],
-            content="",
+            content=DEFAULT_CONTENT.get(section, ""),
         )
         db.add(page)
         await db.commit()
