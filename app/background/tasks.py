@@ -8,6 +8,7 @@ Will be migrated to Celery + Redis in a later phase for retry support.
 
 import logging
 from uuid import UUID
+from datetime import datetime, timezone, timedelta
 
 from fastapi_mail import ConnectionConfig, FastMail, MessageSchema, MessageType
 
@@ -32,6 +33,12 @@ def _mail_config() -> ConnectionConfig:
     )
 
 
+def _format_expiry_time(minutes: int) -> str:
+    """Returns a formatted UTC expiry time string."""
+    expiry = datetime.now(timezone.utc) + timedelta(minutes=minutes)
+    return expiry.strftime("%Y-%m-%d %H:%M UTC")
+
+
 async def send_verification_email(user_id: UUID, email: str, otp: str) -> None:
     """Send a 6-digit email verification OTP to a newly registered user."""
     logger.info(f"[TASK] send_verification_email -> user={user_id} email={email}")
@@ -43,6 +50,8 @@ async def send_verification_email(user_id: UUID, email: str, otp: str) -> None:
         )
         return
 
+    expiry_time = _format_expiry_time(2)
+
     message = MessageSchema(
         subject=f"Verify your {settings.app_name} account",
         recipients=[email],
@@ -50,7 +59,7 @@ async def send_verification_email(user_id: UUID, email: str, otp: str) -> None:
             f"Welcome to {settings.app_name}.\n\n"
             "Use this 6-digit OTP to verify your email address:\n\n"
             f"    {otp}\n\n"
-            "This OTP will expire in 2 minutes.\n\n"
+            f"This OTP will expire at: {expiry_time} (2 minutes from now).\n\n"
             "If you did not create this account, you can ignore this email.\n\n"
             f"- The {settings.app_name} Team"
         ),
@@ -84,14 +93,17 @@ async def send_password_reset_email(user_id: UUID, email: str, otp: str) -> None
         )
         return
 
+    expiry_time = _format_expiry_time(2)
+
     message = MessageSchema(
         subject=f"Reset your {settings.app_name} password",
         recipients=[email],
         body=(
             f"We received a request to reset your {settings.app_name} password.\n\n"
-            f"Your password reset OTP is: {otp}\n\n"
+            "Your password reset OTP is:\n\n"
+            f"    {otp}\n\n"
+            f"This OTP will expire at: {expiry_time} (2 minutes from now).\n\n"
             "Enter this 6-digit code in the app to reset your password.\n\n"
-            "This OTP will expire in 15 minutes.\n\n"
             "If you did not request a password reset, "
             "you can safely ignore this email.\n\n"
             f"- The {settings.app_name} Team"
@@ -167,13 +179,7 @@ async def send_match_joined_notification(
     host_id: UUID,
     joiner_name: str,
 ) -> None:
-    """
-    Notify the match host when a new player joins their match.
-    Steps:
-    1. Create Notification record (type=MATCH_JOINED)
-    2. Push to host's WebSocket channel via ws_manager
-    3. If host is offline: send FCM/APNs push (Phase 4)
-    """
+    """Notify the match host when a new player joins their match."""
     logger.info(
         f"[TASK] send_match_joined_notification -> "
         f"match={match_id} host={host_id} joiner={joiner_name!r}"
@@ -300,13 +306,7 @@ async def send_new_follower_notification(
     following_id: UUID,
     follower_name: str,
 ) -> None:
-    """
-    Notify a user when someone follows them.
-    Steps:
-    1. Create Notification record (type=NEW_FOLLOWER)
-    2. Push to following user's WebSocket channel via ws_manager
-    3. If following user is offline: send FCM/APNs push (Phase 4)
-    """
+    """Notify a user when someone follows them."""
     logger.info(
         f"[TASK] send_new_follower_notification -> "
         f"follower={follower_id} ({follower_name!r}) following={following_id}"
@@ -345,10 +345,7 @@ async def send_new_follower_notification(
 
 
 async def update_games_played(player_ids: list[UUID]) -> None:
-    """
-    Increment total_games_played for all players in a completed match.
-    Triggered when host marks a match as COMPLETED.
-    """
+    """Increment total_games_played for all players in a completed match."""
     logger.info(f"[TASK] update_games_played -> {len(player_ids)} players")
     try:
         from app.database import AsyncSessionLocal
@@ -372,10 +369,7 @@ async def update_games_played(player_ids: list[UUID]) -> None:
 
 
 async def update_user_avg_rating(reviewee_id: UUID) -> None:
-    """
-    Recompute and update a user's average star rating after a new review.
-    Phase 5.
-    """
+    """Recompute and update a user's average star rating after a new review."""
     logger.info(f"[TASK] update_user_avg_rating -> user={reviewee_id}")
     try:
         from app.database import AsyncSessionLocal
@@ -412,11 +406,7 @@ async def persist_chat_message(
     content: str,
     sent_at: str,
 ) -> None:
-    """
-    Persist a WebSocket chat message to the database.
-    Called after broadcasting - never raises (must not crash WebSocket handler).
-    Phase 4.
-    """
+    """Persist a WebSocket chat message to the database."""
     logger.info(
         f"[TASK] persist_chat_message -> match={match_id} sender={sender_id}"
     )
@@ -437,3 +427,4 @@ async def persist_chat_message(
 
     except Exception as e:
         logger.error(f"[TASK] persist_chat_message failed: {e}")
+
