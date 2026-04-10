@@ -1,7 +1,18 @@
 import uuid
 from datetime import datetime
 from pydantic import BaseModel, field_validator
-from app.schemas.user import UserSummaryResponse
+
+
+class UserSummaryResponse(BaseModel):
+    """
+    Lightweight user object used inside nested responses.
+    Never exposes sensitive fields.
+    """
+    id: uuid.UUID
+    full_name: str
+    avatar_url: str | None
+    avg_rating: float
+    model_config = {"from_attributes": True}
 
 
 class CreateReviewRequest(BaseModel):
@@ -32,5 +43,5 @@ class ReviewResponse(BaseModel):
     rating: int
     comment: str | None
     created_at: datetime
-
     model_config = {"from_attributes": True}
+
