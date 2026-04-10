@@ -4,6 +4,7 @@ from datetime import datetime
 from pydantic import BaseModel
 
 from app.models.enums import SkillLevel, SportType, UserStatus
+from app.schemas.review import ReviewResponse
 
 
 class UserSportResponse(BaseModel):
@@ -61,6 +62,7 @@ class UserProfileResponse(BaseModel):
     avg_rating: float
     total_games_played: int
     total_reviews: int
+    reviews: list[ReviewResponse]
     sports: list[UserSportResponse]
     followers_count: int = 0
     following_count: int = 0
@@ -92,4 +94,3 @@ class UpdateProfileRequest(BaseModel):
     location: str | None = None
     avatar_url: str | None = None
     sports: list[UserSportRequest] | None = None
-

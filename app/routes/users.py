@@ -110,17 +110,6 @@ async def get_user_profile(
     return await user_service.get_user_profile(user_id, current_user, db)
 
 
-@router.get("/{user_id}/reviews", response_model=PaginatedResponse[ReviewResponse])
-async def get_user_reviews(
-    user_id: uuid.UUID,
-    pagination: PaginationParams = Depends(),
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Get paginated reviews on a user's public profile. Sorted newest first."""
-    return await user_service.get_user_reviews(user_id, pagination, db)
-
-
 @router.post("/{user_id}/reviews", response_model=ReviewResponse, status_code=201)
 async def create_review(
     user_id: uuid.UUID,

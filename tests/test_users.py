@@ -158,6 +158,8 @@ async def test_get_other_user_profile(client: AsyncClient, db_session: AsyncSess
     assert "total_games_played" in data
     assert "avg_rating" in data
     assert "total_reviews" in data
+    assert "reviews" in data
+    assert isinstance(data["reviews"], list)
     assert "email" not in data
 
 
