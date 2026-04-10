@@ -302,14 +302,15 @@ async def test_review_visible_on_public_profile(client: AsyncClient, db_session:
     )
 
     response = await client.get(
-        f"/api/v1/users/{player.id}/reviews",
+        f"/api/v1/users/{player.id}",
         headers=auth(host_token),
     )
     assert response.status_code == 200
-    items = response.json()["items"]
-    assert len(items) >= 1
-    assert items[0]["rating"] == 4
-    assert items[0]["comment"] == "Good match!"
+    data = response.json()
+    reviews = data["reviews"]
+    assert len(reviews) >= 1
+    assert reviews[0]["rating"] == 4
+    assert reviews[0]["comment"] == "Good match!"
 
 
 async def test_review_comment_too_long(client: AsyncClient, db_session: AsyncSession):

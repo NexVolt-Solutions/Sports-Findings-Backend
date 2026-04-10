@@ -194,6 +194,15 @@ async def get_user_profile(
     )
     total_reviews = total_reviews_result.scalar_one()
 
+    # Fetch reviews
+    reviews_result = await db.execute(
+        select(Review)
+        .options(selectinload(Review.reviewer).selectinload(User.sports))
+        .where(Review.reviewee_id == target_user_id)
+        .order_by(Review.created_at.desc())
+    )
+    reviews = reviews_result.scalars().all()
+
     return UserProfileResponse(
         id=target.id,
         full_name=target.full_name,
@@ -203,30 +212,12 @@ async def get_user_profile(
         avg_rating=target.avg_rating,
         total_games_played=target.total_games_played,
         total_reviews=total_reviews,
+        reviews=[ReviewResponse.model_validate(review) for review in reviews],
         sports=[UserSportResponse.model_validate(s) for s in target.sports],
         followers_count=followers_count,
         following_count=following_count,
         is_following=is_following,
     )
-
-
-async def get_user_reviews(
-    target_user_id: uuid.UUID,
-    pagination: PaginationParams,
-    db: AsyncSession,
-) -> PaginatedResponse:
-    """Return paginated reviews for a user's profile. Sorted newest first."""
-    result = await db.execute(select(User).where(User.id == target_user_id))
-    if not result.scalar_one_or_none():
-        raise UserNotFound()
-
-    query = (
-        select(Review)
-        .options(selectinload(Review.reviewer).selectinload(User.sports))
-        .where(Review.reviewee_id == target_user_id)
-        .order_by(Review.created_at.desc())
-    )
-    return await paginate(db, query, pagination)
 
 
 async def follow_user(
