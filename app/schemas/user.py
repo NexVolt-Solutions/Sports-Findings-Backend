@@ -1,34 +1,19 @@
 import uuid
 from datetime import datetime
-
 from pydantic import BaseModel
-
 from app.models.enums import SkillLevel, SportType, UserStatus
-from app.schemas.review import ReviewResponse
+from app.schemas.review import UserSummaryResponse, ReviewResponse
 
 
 class UserSportResponse(BaseModel):
     sport: SportType
     skill_level: SkillLevel
-
     model_config = {"from_attributes": True}
 
 
 class UserSportRequest(BaseModel):
     sport: SportType
     skill_level: SkillLevel
-
-
-class UserSummaryResponse(BaseModel):
-    """
-    Lightweight user object used inside nested responses.
-    """
-    id: uuid.UUID
-    full_name: str
-    avatar_url: str | None
-    avg_rating: float
-
-    model_config = {"from_attributes": True}
 
 
 class UserResponse(BaseModel):
@@ -46,7 +31,6 @@ class UserResponse(BaseModel):
     status: UserStatus
     sports: list[UserSportResponse]
     created_at: datetime
-
     model_config = {"from_attributes": True}
 
 
@@ -67,7 +51,6 @@ class UserProfileResponse(BaseModel):
     followers_count: int = 0
     following_count: int = 0
     is_following: bool = False
-
     model_config = {"from_attributes": True}
 
 
@@ -84,7 +67,6 @@ class UserListItemResponse(BaseModel):
     total_games_played: int
     sports: list[UserSportResponse]
     is_following: bool = False
-
     model_config = {"from_attributes": True}
 
 
@@ -94,3 +76,4 @@ class UpdateProfileRequest(BaseModel):
     location: str | None = None
     avatar_url: str | None = None
     sports: list[UserSportRequest] | None = None
+
