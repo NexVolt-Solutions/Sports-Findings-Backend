@@ -195,6 +195,80 @@ async def test_forgot_password_known_email(client: AsyncClient):
     assert response.status_code == 200
 
 
+async def test_reset_password_with_otp_success(client: AsyncClient, db_session):
+    # Register and verify a user first
+    email = "reset@example.com"
+    await client.post(
+        "/api/v1/auth/register",
+        data=register_payload(
+            full_name="Reset User",
+            email=email,
+        ),
+    )
+
+    # Manually verify the user
+    result = await db_session.execute(select(User).where(User.email == email))
+    user = result.scalar_one()
+    user.status = UserStatus.ACTIVE
+    user.email_verification_otp = None
+    user.email_verification_otp_expires_at = None
+    await db_session.commit()
+
+    # Request password reset
+    await client.post(
+        "/api/v1/auth/forgot-password",
+        json={"email": email},
+    )
+
+    # Get the OTP from database
+    result = await db_session.execute(select(User).where(User.email == email))
+    user = result.scalar_one()
+    otp = user.password_reset_otp
+
+    # Reset password with OTP
+    response = await client.post(
+        "/api/v1/auth/reset-password",
+        json={
+            "email": email,
+            "otp": otp,
+            "new_password": "NewSecure123"
+        },
+    )
+    assert response.status_code == 200
+    assert "reset successfully" in response.json()["message"].lower()
+
+
+async def test_reset_password_invalid_otp(client: AsyncClient, db_session):
+    # Register and verify a user first
+    email = "reset_invalid@example.com"
+    await client.post(
+        "/api/v1/auth/register",
+        data=register_payload(
+            full_name="Reset Invalid User",
+            email=email,
+        ),
+    )
+
+    # Manually verify the user
+    result = await db_session.execute(select(User).where(User.email == email))
+    user = result.scalar_one()
+    user.status = UserStatus.ACTIVE
+    user.email_verification_otp = None
+    user.email_verification_otp_expires_at = None
+    await db_session.commit()
+
+    # Try to reset password with invalid OTP
+    response = await client.post(
+        "/api/v1/auth/reset-password",
+        json={
+            "email": email,
+            "otp": "000000",
+            "new_password": "NewSecure123"
+        },
+    )
+    assert response.status_code == 400
+
+
 async def test_health_check(client: AsyncClient):
     response = await client.get("/health")
     assert response.status_code == 200

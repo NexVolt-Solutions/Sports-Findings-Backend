@@ -32,10 +32,6 @@ def _mail_config() -> ConnectionConfig:
     )
 
 
-def _reset_url(token: str) -> str:
-    return f"{settings.app_base_url}/reset-password?token={token}"
-
-
 async def send_verification_email(user_id: UUID, email: str, otp: str) -> None:
     """Send a 6-digit email verification OTP to a newly registered user."""
     logger.info(f"[TASK] send_verification_email -> user={user_id} email={email}")
@@ -54,7 +50,7 @@ async def send_verification_email(user_id: UUID, email: str, otp: str) -> None:
             f"Welcome to {settings.app_name}.\n\n"
             "Use this 6-digit OTP to verify your email address:\n\n"
             f"    {otp}\n\n"
-            "This OTP will expire in 10 minutes.\n\n"
+            "This OTP will expire in 2 minutes.\n\n"
             "If you did not create this account, you can ignore this email.\n\n"
             f"- The {settings.app_name} Team"
         ),
@@ -77,15 +73,14 @@ async def send_verification_email(user_id: UUID, email: str, otp: str) -> None:
             logger.info(f"[DEV] verification_otp={otp}")
 
 
-async def send_password_reset_email(user_id: UUID, email: str, token: str) -> None:
-    """Send a password reset link."""
+async def send_password_reset_email(user_id: UUID, email: str, otp: str) -> None:
+    """Send a password reset OTP."""
     logger.info(f"[TASK] send_password_reset_email -> user={user_id} email={email}")
-    reset_url = _reset_url(token)
 
     if not settings.mail_username or not settings.mail_password or not settings.mail_from:
         logger.warning(
             "[TASK] send_password_reset_email skipped: missing mail configuration. "
-            f"reset_url={reset_url}"
+            f"otp={otp}"
         )
         return
 
@@ -94,9 +89,9 @@ async def send_password_reset_email(user_id: UUID, email: str, token: str) -> No
         recipients=[email],
         body=(
             f"We received a request to reset your {settings.app_name} password.\n\n"
-            "Click the link below to set a new password:\n\n"
-            f"    {reset_url}\n\n"
-            "This link will expire in 15 minutes.\n\n"
+            f"Your password reset OTP is: {otp}\n\n"
+            "Enter this 6-digit code in the app to reset your password.\n\n"
+            "This OTP will expire in 15 minutes.\n\n"
             "If you did not request a password reset, "
             "you can safely ignore this email.\n\n"
             f"- The {settings.app_name} Team"
@@ -117,7 +112,7 @@ async def send_password_reset_email(user_id: UUID, email: str, token: str) -> No
         )
     finally:
         if settings.allow_secret_logging:
-            logger.info(f"[DEV] reset_url={reset_url}")
+            logger.info(f"[DEV] otp={otp}")
 
 
 async def geocode_match_address(match_id: UUID, address: str) -> None:

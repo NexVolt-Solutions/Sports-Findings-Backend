@@ -83,6 +83,14 @@ class User(UUIDMixin, TimestampMixin, Base):
         DateTime(timezone=True),
         nullable=True,
     )
+    password_reset_otp: Mapped[str | None] = mapped_column(
+        String(6),
+        nullable=True,
+    )
+    password_reset_otp_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
 
     # ─── Relationships ────────────────────────────────────────────────────────
     sports: Mapped[list["UserSport"]] = relationship(

@@ -41,7 +41,7 @@ from app.background.tasks import (
 logger = logging.getLogger(__name__)
 
 GOOGLE_TOKEN_INFO_URL = "https://oauth2.googleapis.com/tokeninfo"
-EMAIL_OTP_EXPIRE_MINUTES = 10
+EMAIL_OTP_EXPIRE_MINUTES = 2
 
 
 async def register_user(
@@ -316,11 +316,11 @@ async def forgot_password(
     background_tasks: BackgroundTasks,
 ) -> MessageResponse:
     """
-    Send a password reset email.
+    Send a password reset OTP via email.
     Always returns the same message — never reveals whether email exists.
     """
     generic_message = MessageResponse(
-        message="If an account with that email exists, a password reset link has been sent."
+        message="If an account with that email exists, a password reset OTP has been sent."
     )
 
     result = await db.execute(select(User).where(User.email == email))
@@ -329,40 +329,52 @@ async def forgot_password(
     if not user or user.status == UserStatus.BLOCKED or not user.hashed_password:
         return generic_message
 
-    reset_token = _create_email_token(
-        str(user.id), token_type="reset", expire_minutes=15
-    )
+    reset_otp, otp_expires_at = _generate_password_reset_otp()
+    user.password_reset_otp = reset_otp
+    user.password_reset_otp_expires_at = otp_expires_at
+
+    await db.commit()
 
     background_tasks.add_task(
         send_password_reset_email,
         user.id,
         user.email,
-        reset_token,
+        reset_otp,
     )
 
     return generic_message
 
 
 async def reset_password(
-    token: str,
+    email: str,
+    otp: str,
     new_password: str,
     db: AsyncSession,
 ) -> MessageResponse:
-    """Reset the user password using a valid reset token."""
-    user_id_str = decode_token(token, token_type="reset")
-
-    try:
-        user_id = uuid.UUID(user_id_str)
-    except ValueError:
-        raise bad_request("Invalid or expired reset token")
-
-    result = await db.execute(select(User).where(User.id == user_id))
+    """Reset the user password using a valid password reset OTP."""
+    result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
 
     if not user or user.status == UserStatus.BLOCKED:
-        raise bad_request("Invalid or expired reset token")
+        raise bad_request("Invalid email or OTP")
 
+    if not user.password_reset_otp or not user.password_reset_otp_expires_at:
+        raise bad_request("No password reset request found")
+
+    if user.password_reset_otp != otp:
+        raise bad_request("Invalid OTP")
+
+    if user.password_reset_otp_expires_at < datetime.now(timezone.utc):
+        # Clear expired OTP
+        user.password_reset_otp = None
+        user.password_reset_otp_expires_at = None
+        await db.commit()
+        raise bad_request("OTP has expired")
+
+    # OTP is valid, reset password
     user.hashed_password = hash_password(new_password)
+    user.password_reset_otp = None
+    user.password_reset_otp_expires_at = None
     await db.commit()
 
     logger.info(f"Password reset for user: {user.email} (id={user.id})")
@@ -371,25 +383,15 @@ async def reset_password(
 
 # ─── Internal Helpers ─────────────────────────────────────────────────────────
 
-def _create_email_token(
-    subject: str,
-    token_type: str,
-    expire_minutes: int = 60 * 24,
-) -> str:
-    """Creates a short-lived signed JWT for email verification or password reset."""
-    from jose import jwt
-    expire = datetime.now(timezone.utc) + timedelta(minutes=expire_minutes)
-    payload = {
-        "sub": subject,
-        "exp": expire,
-        "type": token_type,
-    }
-    return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
-
-
 def _generate_email_otp() -> tuple[str, datetime]:
     otp = f"{secrets.randbelow(1_000_000):06d}"
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=EMAIL_OTP_EXPIRE_MINUTES)
+    return otp, expires_at
+
+
+def _generate_password_reset_otp() -> tuple[str, datetime]:
+    otp = f"{secrets.randbelow(1_000_000):06d}"
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)  # 15 minutes for password reset
     return otp, expires_at
 
 
@@ -418,5 +420,3 @@ async def _verify_google_token(id_token: str) -> dict:
     except httpx.HTTPError as e:
         logger.error(f"Google token verification HTTP error: {e}")
         raise external_service_error("Google authentication")
-        
-        
