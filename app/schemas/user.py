@@ -64,6 +64,8 @@ class UserResponse(BaseModel):
     is_admin: bool
     status: UserStatus
     sports: list[UserSportResponse]
+    total_reviews: int = 0
+    reviews: list[ReviewResponse] = []
     stats: UserStatsResponse
     actions: UserActionsResponse
     settings: UserSettingsResponse
