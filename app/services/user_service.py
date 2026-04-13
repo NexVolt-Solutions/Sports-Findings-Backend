@@ -106,6 +106,21 @@ async def get_my_profile(user: User, db: AsyncSession) -> UserResponse:
     )
     following_count = following_result.scalar_one()
 
+    # Count reviews
+    total_reviews_result = await db.execute(
+        select(func.count()).where(Review.reviewee_id == user_with_sports.id)
+    )
+    total_reviews = total_reviews_result.scalar_one()
+
+    # Fetch reviews
+    reviews_result = await db.execute(
+        select(Review)
+        .options(selectinload(Review.reviewer).selectinload(User.sports))
+        .where(Review.reviewee_id == user_with_sports.id)
+        .order_by(Review.created_at.desc())
+    )
+    reviews = reviews_result.scalars().all()
+
     return UserResponse(
         id=user_with_sports.id,
         full_name=user_with_sports.full_name,
@@ -116,6 +131,8 @@ async def get_my_profile(user: User, db: AsyncSession) -> UserResponse:
         is_admin=user_with_sports.is_admin,
         status=user_with_sports.status,
         sports=[UserSportResponse.model_validate(s) for s in user_with_sports.sports],
+        total_reviews=total_reviews,
+        reviews=[ReviewResponse.model_validate(review) for review in reviews],
         stats=UserStatsResponse(
             followers=followers_count,
             following=following_count,
