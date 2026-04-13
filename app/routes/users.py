@@ -30,7 +30,7 @@ async def list_users(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Browse public users for the frontend. Excludes the current user and admin accounts."""
+    """Browse public users. Excludes current user and admin accounts."""
     return await user_service.list_users(current_user, pagination, db, search)
 
 
@@ -51,7 +51,9 @@ def _read_optional_form_value(form, key: str) -> str | None:
     return text if text else ""
 
 
-async def _parse_update_profile_request(request: Request) -> tuple[UpdateProfileRequest, UploadFile | None]:
+async def _parse_update_profile_request(
+    request: Request,
+) -> tuple[UpdateProfileRequest, UploadFile | None]:
     content_type = request.headers.get("content-type", "").lower()
 
     if "multipart/form-data" in content_type:
@@ -62,7 +64,9 @@ async def _parse_update_profile_request(request: Request) -> tuple[UpdateProfile
             try:
                 sports = json.loads(sports_raw) if sports_raw else []
             except json.JSONDecodeError as exc:
-                raise bad_request("Invalid sports payload. Expected JSON array.") from exc
+                raise bad_request(
+                    "Invalid sports payload. Expected JSON array."
+                ) from exc
 
         payload = UpdateProfileRequest.model_validate(
             {
@@ -83,7 +87,9 @@ async def _parse_update_profile_request(request: Request) -> tuple[UpdateProfile
         data = await request.json()
         return UpdateProfileRequest.model_validate(data), None
 
-    raise bad_request("Unsupported content type. Use application/json or multipart/form-data.")
+    raise bad_request(
+        "Unsupported content type. Use application/json or multipart/form-data."
+    )
 
 
 @router.put("/me", response_model=UserResponse)
@@ -94,7 +100,7 @@ async def update_my_profile(
 ):
     """
     Update the authenticated user's profile.
-    Supports JSON for profile-only updates and multipart/form-data for profile + avatar updates.
+    Supports JSON and multipart/form-data (for avatar upload).
     """
     payload, avatar_file = await _parse_update_profile_request(request)
     return await user_service.update_profile(current_user, payload, db, avatar_file)
@@ -110,7 +116,11 @@ async def get_user_profile(
     return await user_service.get_user_profile(user_id, current_user, db)
 
 
-@router.post("/{user_id}/reviews", response_model=ReviewResponse, status_code=201)
+@router.post(
+    "/{user_id}/reviews",
+    response_model=ReviewResponse,
+    status_code=201,
+)
 async def create_review(
     user_id: uuid.UUID,
     payload: CreateReviewRequest,
@@ -118,12 +128,18 @@ async def create_review(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
+    """Create a review for a user after a match."""
     from app.services.review_service import create_review as svc_create_review
+    return await svc_create_review(
+        user_id, payload, current_user, db, background_tasks
+    )
 
-    return await svc_create_review(user_id, payload, current_user, db, background_tasks)
 
-
-@router.post("/{user_id}/follow", response_model=MessageResponse, status_code=201)
+@router.post(
+    "/{user_id}/follow",
+    response_model=MessageResponse,
+    status_code=201,
+)
 async def follow_user(
     user_id: uuid.UUID,
     current_user: User = Depends(get_current_active_user),
@@ -145,7 +161,10 @@ async def unfollow_user(
     return MessageResponse(message="User unfollowed successfully.")
 
 
-@router.get("/{user_id}/followers", response_model=PaginatedResponse[UserProfileResponse])
+@router.get(
+    "/{user_id}/followers",
+    response_model=PaginatedResponse[UserListItemResponse],
+)
 async def get_followers(
     user_id: uuid.UUID,
     pagination: PaginationParams = Depends(),
@@ -156,7 +175,10 @@ async def get_followers(
     return await user_service.get_followers(user_id, pagination, db)
 
 
-@router.get("/{user_id}/following", response_model=PaginatedResponse[UserProfileResponse])
+@router.get(
+    "/{user_id}/following",
+    response_model=PaginatedResponse[UserListItemResponse],
+)
 async def get_following(
     user_id: uuid.UUID,
     pagination: PaginationParams = Depends(),
@@ -165,3 +187,4 @@ async def get_following(
 ):
     """Get paginated list of users this user follows."""
     return await user_service.get_following(user_id, pagination, db)
+

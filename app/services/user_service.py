@@ -15,6 +15,11 @@ from app.schemas.user import (
     UserListItemResponse,
     UserSportResponse,
     UpdateProfileRequest,
+    UserStatsResponse,
+    UserActionsResponse,
+    UserSettingsResponse,
+    UserNavigationResponse,
+    UserCtaResponse,
 )
 from app.schemas.review import ReviewResponse
 from app.utils.exceptions import UserNotFound, conflict, bad_request
@@ -32,11 +37,7 @@ async def list_users(
 ) -> PaginatedResponse:
     """
     Return a paginated list of public user cards for the frontend.
-
-    Excludes:
-    - the authenticated user
-    - admin accounts
-    - non-active accounts
+    Excludes the authenticated user, admin accounts, and non-active accounts.
     """
     query = (
         select(User)
@@ -85,14 +86,62 @@ async def list_users(
 
 
 async def get_my_profile(user: User, db: AsyncSession) -> UserResponse:
-    """Return the authenticated user's own full profile with sports."""
+    """Return the authenticated user's own full profile."""
     result = await db.execute(
         select(User)
         .options(selectinload(User.sports))
         .where(User.id == user.id)
     )
     user_with_sports = result.scalar_one()
-    return UserResponse.model_validate(user_with_sports)
+
+    # Count followers
+    followers_result = await db.execute(
+        select(func.count()).where(Follow.following_id == user.id)
+    )
+    followers_count = followers_result.scalar_one()
+
+    # Count following
+    following_result = await db.execute(
+        select(func.count()).where(Follow.follower_id == user.id)
+    )
+    following_count = following_result.scalar_one()
+
+    return UserResponse(
+        id=user_with_sports.id,
+        full_name=user_with_sports.full_name,
+        email=user_with_sports.email,
+        bio=user_with_sports.bio,
+        location=user_with_sports.location,
+        avatar_url=user_with_sports.avatar_url,
+        is_admin=user_with_sports.is_admin,
+        status=user_with_sports.status,
+        sports=[UserSportResponse.model_validate(s) for s in user_with_sports.sports],
+        stats=UserStatsResponse(
+            followers=followers_count,
+            following=following_count,
+            matches=user_with_sports.total_games_played,
+        ),
+        actions=UserActionsResponse(
+            can_follow=False,
+            can_message=False,
+            can_rate=False,
+            is_own_profile=True,
+        ),
+        settings=UserSettingsResponse(
+            notifications_enabled=True,
+        ),
+        navigation=UserNavigationResponse(
+            public_profile_enabled=True,
+            private_profile_enabled=False,
+            terms_url="https://sportfinding.com/terms",
+            privacy_url="https://sportfinding.com/privacy",
+        ),
+        cta=UserCtaResponse(
+            edit_profile=True,
+            share_profile=True,
+        ),
+        created_at=user_with_sports.created_at,
+    )
 
 
 async def update_profile(
@@ -120,14 +169,12 @@ async def update_profile(
 
     # Replace sports if provided
     if payload.sports is not None:
-        # Delete all existing sport records for this user
         existing = await db.execute(
             select(UserSport).where(UserSport.user_id == user.id)
         )
         for sport_record in existing.scalars().all():
             await db.delete(sport_record)
 
-        # Insert new sport records
         for sport_entry in payload.sports:
             new_sport = UserSport(
                 user_id=user.id,
@@ -146,7 +193,8 @@ async def update_profile(
         .where(User.id == user.id)
     )
     updated_user = result.scalar_one()
-    return UserResponse.model_validate(updated_user)
+
+    return await get_my_profile(updated_user, db)
 
 
 async def get_user_profile(
@@ -156,9 +204,8 @@ async def get_user_profile(
 ) -> UserProfileResponse:
     """
     Return another user's public profile.
-    Includes followers/following counts and is_following flag.
+    Includes followers/following counts, is_following flag and actions.
     """
-    # Fetch target user with sports
     result = await db.execute(
         select(User)
         .options(selectinload(User.sports))
@@ -189,6 +236,10 @@ async def get_user_profile(
     )
     is_following = is_following_result.scalar_one_or_none() is not None
 
+    # Check if this is own profile
+    is_own_profile = current_user.id == target_user_id
+
+    # Count reviews
     total_reviews_result = await db.execute(
         select(func.count()).where(Review.reviewee_id == target_user_id)
     )
@@ -209,14 +260,22 @@ async def get_user_profile(
         bio=target.bio,
         location=target.location,
         avatar_url=target.avatar_url,
-        avg_rating=target.avg_rating,
-        total_games_played=target.total_games_played,
+        is_admin=target.is_admin,
         total_reviews=total_reviews,
         reviews=[ReviewResponse.model_validate(review) for review in reviews],
         sports=[UserSportResponse.model_validate(s) for s in target.sports],
-        followers_count=followers_count,
-        following_count=following_count,
-        is_following=is_following,
+        stats=UserStatsResponse(
+            followers=followers_count,
+            following=following_count,
+            rating=target.avg_rating,
+        ),
+        actions=UserActionsResponse(
+            can_follow=not is_own_profile,
+            can_message=not is_own_profile,
+            can_rate=not is_own_profile,
+            is_following=is_following,
+            is_own_profile=is_own_profile,
+        ),
     )
 
 
@@ -226,19 +285,14 @@ async def follow_user(
     db: AsyncSession,
     background_tasks=None,
 ) -> None:
-    """
-    Follow another user.
-    Sends a NEW_FOLLOWER notification to the followed user.
-    """
+    """Follow another user."""
     if target_user_id == current_user.id:
         raise bad_request("You cannot follow yourself")
 
-    # Verify target exists
     result = await db.execute(select(User).where(User.id == target_user_id))
     if not result.scalar_one_or_none():
         raise UserNotFound()
 
-    # Check not already following
     existing = await db.execute(
         select(Follow).where(
             Follow.follower_id == current_user.id,
@@ -251,14 +305,13 @@ async def follow_user(
     follow = Follow(follower_id=current_user.id, following_id=target_user_id)
     db.add(follow)
 
-    # Create NEW_FOLLOWER notification for the followed user
     from app.models.notification import Notification
     from app.models.enums import NotificationType
     notification = Notification(
         user_id=target_user_id,
         type=NotificationType.NEW_FOLLOWER,
         payload={
-            "follower_id":   str(current_user.id),
+            "follower_id": str(current_user.id),
             "follower_name": current_user.full_name,
             "follower_avatar": current_user.avatar_url,
         },
@@ -266,14 +319,13 @@ async def follow_user(
     db.add(notification)
     await db.commit()
 
-    # Push via WebSocket if user is online (best-effort)
     try:
         from app.websockets.connection_manager import ws_manager
         await ws_manager.send_to_user(str(target_user_id), {
-            "type":              "notification",
+            "type": "notification",
             "notification_type": NotificationType.NEW_FOLLOWER.value,
             "payload": {
-                "follower_id":   str(current_user.id),
+                "follower_id": str(current_user.id),
                 "follower_name": current_user.full_name,
             },
         })
@@ -341,3 +393,4 @@ async def get_following(
         .order_by(Follow.created_at.desc())
     )
     return await paginate(db, query, pagination)
+
