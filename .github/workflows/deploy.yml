@@ -22,7 +22,9 @@ jobs:
             --document-name "AWS-RunShellScript" \
             --parameters 'commands=[
               "cd /home/ubuntu/Sports-Findings-Backend",
-              "git pull origin main",
+              "git fetch origin main",
+              "git reset --hard origin/main",
+              "git clean -fd",
               "docker-compose -f docker-compose.prod.yml down",
               "docker-compose -f docker-compose.prod.yml up -d --build",
               "docker-compose -f docker-compose.prod.yml exec -T api alembic upgrade head",
@@ -61,4 +63,3 @@ jobs:
           fi
 
           echo "Deployment completed successfully!"
-          
