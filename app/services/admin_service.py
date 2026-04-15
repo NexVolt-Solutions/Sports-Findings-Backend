@@ -213,7 +213,6 @@ def _build_match_detail_response(match: Match, current_players: int) -> MatchDet
         scheduled_date=match.scheduled_at.strftime("%Y-%m-%d"),
         scheduled_time=match.scheduled_at.strftime("%H:%M"),
         facility_address=match.facility_address,
-        location_name=match.location_name,
         location=location,
         latitude=match.latitude,
         longitude=match.longitude,

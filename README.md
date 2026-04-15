@@ -203,7 +203,6 @@ All REST endpoints are versioned under `/api/v1`:
 - `DELETE /{match_id}` — Delete match (host only)
 - `POST /{match_id}/join` — Join an active match
 - `DELETE /{match_id}/leave` — Leave a match
-- `GET /{match_id}/players` — List match participants
 - `DELETE /{match_id}/players/{user_id}` — Remove player (host only)
 - `PATCH /{match_id}/status` — Update match status (host only)
 - `POST /{match_id}/invite` — Send match invitation to a user

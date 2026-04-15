@@ -85,42 +85,30 @@ async def test_create_match_success(client: AsyncClient, db_session: AsyncSessio
     assert data["status"] == "Open"
     assert data["current_players"] == 1          # Host auto-joined
     assert data["host"]["id"] == str(host.id)
+    assert "location_name" not in data
 
 
 async def test_create_match_host_auto_joined(client: AsyncClient, db_session: AsyncSession):
-    """Host should appear in the match player list after creation."""
+    """Host should appear in the embedded participants list after creation."""
     host, token = await make_user(db_session, "host_autojoin@example.com", "AutoJoin Host")
     create_resp = await client.post(
         "/api/v1/matches",
         json=match_payload(),
         headers=auth(token),
     )
-    match_id = create_resp.json()["id"]
-
-    players_resp = await client.get(
-        f"/api/v1/matches/{match_id}/players",
-        headers=auth(token),
-    )
-    assert players_resp.status_code == 200
-    player_ids = [p["user"]["id"] for p in players_resp.json()["items"]]
+    player_ids = [p["user"]["id"] for p in create_resp.json()["participants"]]
     assert str(host.id) in player_ids
 
 
 async def test_create_match_host_role_in_players(client: AsyncClient, db_session: AsyncSession):
-    """Host player record should have role=Host."""
+    """Host participant record should have role=Host."""
     host, token = await make_user(db_session, "host_role@example.com", "Role Host")
     create_resp = await client.post(
         "/api/v1/matches",
         json=match_payload(),
         headers=auth(token),
     )
-    match_id = create_resp.json()["id"]
-
-    players_resp = await client.get(
-        f"/api/v1/matches/{match_id}/players",
-        headers=auth(token),
-    )
-    players = players_resp.json()["items"]
+    players = create_resp.json()["participants"]
     host_entry = next(p for p in players if p["user"]["id"] == str(host.id))
     assert host_entry["role"] == "Host"
 
@@ -178,6 +166,7 @@ async def test_create_match_accepts_ui_payload_shape(client: AsyncClient, db_ses
     assert data["scheduled_date"] == "2026-06-16"
     assert data["scheduled_time"] == "18:30"
     assert data["skill_level"] == "Intermediate"
+    assert "location_name" not in data
 
 
 async def test_create_match_accepts_frontend_place_coordinates(client: AsyncClient, db_session: AsyncSession):
@@ -187,7 +176,6 @@ async def test_create_match_accepts_frontend_place_coordinates(client: AsyncClie
         "/api/v1/matches",
         json=match_payload(
             facility_address="Peshawar Sports Complex",
-            location_name="Peshawar Sports Complex",
             latitude=34.0151,
             longitude=71.5249,
         ),
@@ -195,9 +183,9 @@ async def test_create_match_accepts_frontend_place_coordinates(client: AsyncClie
     )
     assert response.status_code == 201
     data = response.json()
-    assert data["location_name"] == "Peshawar Sports Complex"
     assert data["latitude"] == 34.0151
     assert data["longitude"] == 71.5249
+    assert "location_name" not in data
 
 
 async def test_create_match_unauthenticated(client: AsyncClient):
@@ -216,7 +204,9 @@ async def test_get_match_by_id(client: AsyncClient, db_session: AsyncSession):
 
     response = await client.get(f"/api/v1/matches/{match_id}", headers=auth(token))
     assert response.status_code == 200
-    assert response.json()["id"] == match_id
+    data = response.json()
+    assert data["id"] == match_id
+    assert "location_name" not in data
 
 
 async def test_get_match_includes_host_games_played(client: AsyncClient, db_session: AsyncSession):
@@ -316,9 +306,9 @@ async def test_update_match_accepts_frontend_place_coordinates(client: AsyncClie
     assert response.status_code == 200
     data = response.json()
     assert data["facility_address"] == "Islamabad Sports Arena"
-    assert data["location_name"] == "Islamabad Sports Arena"
     assert data["latitude"] == 33.6844
     assert data["longitude"] == 73.0479
+    assert "location_name" not in data
 
 
 # ─── Delete Match ─────────────────────────────────────────────────────────────
@@ -361,9 +351,9 @@ async def test_join_match_success(client: AsyncClient, db_session: AsyncSession)
     response = await client.post(f"/api/v1/matches/{match_id}/join", headers=auth(player_token))
     assert response.status_code == 201
 
-    # Player should now appear in player list
-    players_resp = await client.get(f"/api/v1/matches/{match_id}/players", headers=auth(host_token))
-    player_ids = [p["user"]["id"] for p in players_resp.json()["items"]]
+    # Player should now appear in embedded participants
+    match_resp = await client.get(f"/api/v1/matches/{match_id}", headers=auth(host_token))
+    player_ids = [p["user"]["id"] for p in match_resp.json()["participants"]]
     assert str(player.id) in player_ids
 
 
@@ -494,9 +484,9 @@ async def test_remove_player_success(client: AsyncClient, db_session: AsyncSessi
     )
     assert response.status_code == 200
 
-    # Player should no longer appear in player list
-    players_resp = await client.get(f"/api/v1/matches/{match_id}/players", headers=auth(host_token))
-    player_ids = [p["user"]["id"] for p in players_resp.json()["items"]]
+    # Player should no longer appear in embedded participants
+    match_resp = await client.get(f"/api/v1/matches/{match_id}", headers=auth(host_token))
+    player_ids = [p["user"]["id"] for p in match_resp.json()["participants"]]
     assert str(player.id) not in player_ids
 
 
