@@ -231,7 +231,6 @@ async def _build_match_detail(
         scheduled_date=_format_scheduled_date(match.scheduled_at),
         scheduled_time=_format_scheduled_time(match.scheduled_at),
         facility_address=match.facility_address,
-        location_name=match.location_name,
         location=location,
         latitude=match.latitude,
         longitude=match.longitude,
@@ -273,7 +272,7 @@ async def create_match(
         title=payload.title.strip(),
         description=payload.description.strip() if payload.description else None,
         facility_address=payload.facility_address.strip(),
-        location_name=payload.location_name.strip() if payload.location_name else None,
+        location_name=payload.location.strip() if payload.location else None,
         latitude=payload.latitude,
         longitude=payload.longitude,
         scheduled_at=payload.scheduled_at,
@@ -908,50 +907,6 @@ async def update_match_status(
 
 
 # ─── Get Match Players ────────────────────────────────────────────────────────
-
-async def get_match_players(
-    match_id: uuid.UUID,
-    pagination: PaginationParams,
-    db: AsyncSession,
-) -> PaginatedResponse:
-    """
-    Get paginated list of active participants in a match.
-    Host is always included (role=Host). Sorted by joined_at ascending.
-    """
-    # Verify match exists
-    await _get_match_or_404(match_id, db)
-
-    query = (
-        select(MatchPlayer)
-        .options(selectinload(MatchPlayer.user))
-        .where(
-            and_(
-                MatchPlayer.match_id == match_id,
-                MatchPlayer.status == MatchPlayerStatus.ACTIVE,
-            )
-        )
-        .order_by(MatchPlayer.joined_at.asc())
-    )
-
-    paginated = await paginate(db, query, pagination)
-
-    items = [
-        MatchPlayerResponse(
-            user=UserSummaryResponse(
-                id=mp.user.id,
-                full_name=mp.user.full_name,
-                avatar_url=mp.user.avatar_url,
-                avg_rating=mp.user.avg_rating,
-            ),
-            role=mp.role.value,
-            joined_at=mp.joined_at,
-        )
-        for mp in paginated.items
-    ]
-
-    paginated.items = items
-    return paginated
-
 
 # ─── Get Nearby Matches (Phase 3) ─────────────────────────────────────────────
 

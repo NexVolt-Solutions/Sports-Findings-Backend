@@ -587,7 +587,7 @@
                 }
               }
             },
-            "description": "UI-friendly payload. You may also send facility_address/location_name/latitude/longitude directly."
+            "description": "UI-friendly payload. You may also send facility_address/latitude/longitude directly."
           },
           "response": []
         },
@@ -689,17 +689,6 @@
             "header": [],
             "url": {
               "raw": "{{apiBase}}/matches/{{matchId}}/leave"
-            }
-          },
-          "response": []
-        },
-        {
-          "name": "Get Match Players",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": {
-              "raw": "{{apiBase}}/matches/{{matchId}}/players?page=1&limit=20"
             }
           },
           "response": []

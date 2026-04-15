@@ -13,7 +13,6 @@ class CreateMatchRequest(BaseModel):
     sport: SportType
     facility_address: str | None = None
     location: str | None = None
-    location_name: str | None = None
     latitude: float | None = None
     longitude: float | None = None
     scheduled_at: datetime | None = None
@@ -27,9 +26,6 @@ class CreateMatchRequest(BaseModel):
     def normalize_ui_fields(self) -> "CreateMatchRequest":
         if not self.facility_address and self.location:
             self.facility_address = self.location.strip()
-
-        if not self.location_name and self.location:
-            self.location_name = self.location.strip()
 
         if self.scheduled_at is None:
             if not self.date or not self.time:
@@ -219,7 +215,6 @@ class MatchDetailResponse(BaseModel):
     scheduled_date: str
     scheduled_time: str
     facility_address: str
-    location_name: str | None
     location: str
     latitude: float | None
     longitude: float | None

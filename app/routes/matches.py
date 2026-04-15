@@ -13,7 +13,6 @@ from app.schemas.match import (
     UpdateMatchRequest,
     MatchDetailResponse,
     MatchSummaryResponse,
-    MatchPlayerResponse,
     MatchStatusUpdateRequest,
 )
 from app.schemas.common import MessageResponse, PaginatedResponse
@@ -137,17 +136,6 @@ async def leave_match(
     Leaving a full match reopens the slot.
     """
     return await match_service.leave_match(match_id, current_user, db)
-
-
-@router.get("/{match_id}/players", response_model=PaginatedResponse[MatchPlayerResponse])
-async def get_match_players(
-    match_id: uuid.UUID,
-    pagination: PaginationParams = Depends(),
-    current_user: User = Depends(get_current_active_user),
-    db: AsyncSession = Depends(get_db),
-):
-    """Get paginated list of active participants in a match. Sorted by join time."""
-    return await match_service.get_match_players(match_id, pagination, db)
 
 
 @router.delete("/{match_id}/players/{user_id}", response_model=MessageResponse)
