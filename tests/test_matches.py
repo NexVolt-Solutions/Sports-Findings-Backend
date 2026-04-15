@@ -219,6 +219,44 @@ async def test_get_match_by_id(client: AsyncClient, db_session: AsyncSession):
     assert response.json()["id"] == match_id
 
 
+async def test_get_match_includes_host_games_played(client: AsyncClient, db_session: AsyncSession):
+    """Match details should expose the host's played-match count consistently."""
+    host, token = await make_user(db_session, "get_match_host_stats@example.com", "Stats Host")
+    host.total_games_played = 14
+    await db_session.commit()
+    await db_session.refresh(host)
+
+    create_resp = await client.post("/api/v1/matches", json=match_payload(), headers=auth(token))
+    match_id = create_resp.json()["id"]
+
+    response = await client.get(f"/api/v1/matches/{match_id}", headers=auth(token))
+    assert response.status_code == 200
+    data = response.json()
+    assert data["host_games_played"] == 14
+    assert data["host"]["total_games_played"] == 14
+
+
+async def test_get_match_returns_all_participants(client: AsyncClient, db_session: AsyncSession):
+    """Match details should return a complete participant list including the host."""
+    host, host_token = await make_user(db_session, "get_match_participants_host@example.com", "Participants Host")
+    player_one, player_one_token = await make_user(db_session, "get_match_participants_p1@example.com", "Player One")
+    player_two, player_two_token = await make_user(db_session, "get_match_participants_p2@example.com", "Player Two")
+
+    create_resp = await client.post("/api/v1/matches", json=match_payload(), headers=auth(host_token))
+    match_id = create_resp.json()["id"]
+
+    await client.post(f"/api/v1/matches/{match_id}/join", headers=auth(player_one_token))
+    await client.post(f"/api/v1/matches/{match_id}/join", headers=auth(player_two_token))
+
+    response = await client.get(f"/api/v1/matches/{match_id}", headers=auth(host_token))
+    assert response.status_code == 200
+    data = response.json()
+
+    participant_ids = {participant["user"]["id"] for participant in data["participants"]}
+    assert participant_ids == {str(host.id), str(player_one.id), str(player_two.id)}
+    assert data["current_players"] == 3
+
+
 async def test_get_match_not_found(client: AsyncClient, db_session: AsyncSession):
     """Non-existent match ID should return 404."""
     _, token = await make_user(db_session, "notfound_match@example.com")
