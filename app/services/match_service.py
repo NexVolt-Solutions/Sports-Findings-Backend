@@ -135,6 +135,43 @@ async def _count_active_players(match_id: uuid.UUID, db: AsyncSession) -> int:
     return result.scalar_one()
 
 
+async def _fetch_match_participants(
+    match_id: uuid.UUID, db: AsyncSession
+) -> list[MatchPlayerResponse]:
+    """
+    Fetch all active participants in a match and return as MatchPlayerResponse objects.
+    Sorted by joined_at ascending (host first).
+    """
+    result = await db.execute(
+        select(MatchPlayer)
+        .options(selectinload(MatchPlayer.user))
+        .where(
+            and_(
+                MatchPlayer.match_id == match_id,
+                MatchPlayer.status == MatchPlayerStatus.ACTIVE,
+            )
+        )
+        .order_by(MatchPlayer.joined_at.asc())
+    )
+
+    participants = []
+    for mp in result.scalars().all():
+        participants.append(
+                MatchPlayerResponse(
+                    user=UserSummaryResponse(
+                        id=mp.user.id,
+                        full_name=mp.user.full_name,
+                        avatar_url=mp.user.avatar_url,
+                        avg_rating=mp.user.avg_rating,
+                        total_games_played=mp.user.total_games_played,
+                    ),
+                    role=mp.role.value,
+                    joined_at=mp.joined_at,
+                )
+        )
+    return participants
+
+
 async def _count_active_players_for_match_ids(
     match_ids: list[uuid.UUID],
     db: AsyncSession,
@@ -166,9 +203,22 @@ async def _count_active_players_for_match_ids(
     return counts
 
 
-def _build_match_detail(match: Match, current_players: int) -> MatchDetailResponse:
-    """Builds a MatchDetailResponse from a Match ORM object."""
+async def _build_match_detail(
+    match: Match,
+    current_players: int,
+    db: AsyncSession,
+    participants: list[MatchPlayerResponse] | None = None,
+) -> MatchDetailResponse:
+    """
+    Builds a MatchDetailResponse from a Match ORM object.
+    Includes host's games_played and list of participants.
+    """
     location = match.location_name or match.facility_address
+
+    # Fetch participants if not provided
+    if participants is None:
+        participants = await _fetch_match_participants(match.id, db)
+
     return MatchDetailResponse(
         id=match.id,
         title=match.title,
@@ -192,7 +242,10 @@ def _build_match_detail(match: Match, current_players: int) -> MatchDetailRespon
             full_name=match.host.full_name,
             avatar_url=match.host.avatar_url,
             avg_rating=match.host.avg_rating,
+            total_games_played=match.host.total_games_played,
         ),
+        host_games_played=match.host.total_games_played,
+        participants=participants,
         created_at=match.created_at,
     )
 
@@ -263,7 +316,19 @@ async def create_match(
     logger.info(f"Match created: '{match.title}' (id={match.id}) by host={host.id}")
 
     # Host counts as 1 active player
-    return _build_match_detail(match, current_players=1)
+    # Create MatchPlayerResponse for the host
+    host_participant = MatchPlayerResponse(
+        user=UserSummaryResponse(
+            id=match.host.id,
+            full_name=match.host.full_name,
+            avatar_url=match.host.avatar_url,
+            avg_rating=match.host.avg_rating,
+            total_games_played=match.host.total_games_played,
+        ),
+        role=MatchPlayerRole.HOST.value,
+        joined_at=host_player.joined_at,
+    )
+    return await _build_match_detail(match, current_players=1, db=db, participants=[host_participant])
 
 
 # ─── Get Match by ID ──────────────────────────────────────────────────────────
@@ -272,10 +337,11 @@ async def get_match_by_id(
     match_id: uuid.UUID,
     db: AsyncSession,
 ) -> MatchDetailResponse:
-    """Fetch full details of a single match including current player count."""
+    """Fetch full details of a single match including current player count and participants."""
     match = await _get_match_or_404(match_id, db)
     current_players = await _count_active_players(match_id, db)
-    return _build_match_detail(match, current_players)
+    participants = await _fetch_match_participants(match_id, db)
+    return await _build_match_detail(match, current_players, db, participants)
 
 
 async def list_matches_by_type(
@@ -535,7 +601,7 @@ async def update_match(
     )
     match = result.scalar_one()
     current_players = await _count_active_players(match_id, db)
-    return _build_match_detail(match, current_players)
+    return await _build_match_detail(match, current_players, db)
 
 
 # ─── Delete Match ─────────────────────────────────────────────────────────────
@@ -838,7 +904,7 @@ async def update_match_status(
     )
     match = result.scalar_one()
     current_players = await _count_active_players(match_id, db)
-    return _build_match_detail(match, current_players)
+    return await _build_match_detail(match, current_players, db)
 
 
 # ─── Get Match Players ────────────────────────────────────────────────────────

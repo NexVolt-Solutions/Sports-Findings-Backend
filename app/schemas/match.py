@@ -226,6 +226,8 @@ class MatchDetailResponse(BaseModel):
     max_players: int
     current_players: int = 0
     host: UserSummaryResponse
+    host_games_played: int = 0  # Number of matches the host has played
+    participants: list["MatchPlayerResponse"] = []  # List of all participating players
     created_at: datetime
 
     model_config = {"from_attributes": True}

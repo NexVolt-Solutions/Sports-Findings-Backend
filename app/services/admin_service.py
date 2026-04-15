@@ -224,7 +224,9 @@ def _build_match_detail_response(match: Match, current_players: int) -> MatchDet
             full_name=match.host.full_name,
             avatar_url=match.host.avatar_url,
             avg_rating=match.host.avg_rating,
+            total_games_played=match.host.total_games_played,
         ),
+        host_games_played=match.host.total_games_played,
         created_at=match.created_at,
     )
 
