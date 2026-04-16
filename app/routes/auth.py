@@ -14,6 +14,8 @@ from app.schemas.auth import (
     VerifyEmailRequest,
     ResendVerificationOtpRequest,
     ForgotPasswordRequest,
+    ResendResetPasswordOtpRequest,
+    VerifyResetPasswordOtpRequest,
     ResetPasswordRequest,
 )
 from app.schemas.common import MessageResponse
@@ -175,10 +177,33 @@ async def forgot_password(
     return await auth_service.forgot_password(payload.email, db, background_tasks)
 
 
+@router.post("/resend-reset-password-otp", response_model=MessageResponse)
+async def resend_reset_password_otp(
+    payload: ResendResetPasswordOtpRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+):
+    """Resend a fresh password reset OTP."""
+    return await auth_service.resend_reset_password_otp(
+        payload.email, db, background_tasks
+    )
+
+
+@router.post("/verify-reset-password-otp", response_model=MessageResponse)
+async def verify_reset_password_otp(
+    payload: VerifyResetPasswordOtpRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """Verify the password reset OTP before accepting a new password."""
+    return await auth_service.verify_reset_password_otp(payload.email, payload.otp, db)
+
+
 @router.post("/reset-password", response_model=MessageResponse)
 async def reset_password(
     payload: ResetPasswordRequest,
     db: AsyncSession = Depends(get_db),
 ):
     """Reset the user's password using a valid reset OTP."""
-    return await auth_service.reset_password(payload.email, payload.otp, payload.new_password, db)
+    return await auth_service.reset_password(
+        payload.email, payload.otp, payload.new_password, db
+    )

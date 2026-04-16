@@ -347,6 +347,34 @@ async def forgot_password(
     return generic_message
 
 
+async def resend_reset_password_otp(
+    email: str,
+    db: AsyncSession,
+    background_tasks: BackgroundTasks,
+) -> MessageResponse:
+    """
+    Resend a fresh password reset OTP.
+    This intentionally reuses the forgot-password behavior so each request
+    issues a new OTP and invalidates the previous one.
+    """
+    return await forgot_password(email, db, background_tasks)
+
+
+async def verify_reset_password_otp(
+    email: str,
+    otp: str,
+    db: AsyncSession,
+) -> MessageResponse:
+    """Verify a password reset OTP before the password update step."""
+    user = await _get_user_for_password_reset(email, db)
+
+    if user.password_reset_otp != otp:
+        raise bad_request("Invalid OTP")
+
+    await _ensure_password_reset_otp_not_expired(user, db)
+    return MessageResponse(message="OTP verified successfully. You can now set a new password.")
+
+
 async def reset_password(
     email: str,
     otp: str,
@@ -354,32 +382,13 @@ async def reset_password(
     db: AsyncSession,
 ) -> MessageResponse:
     """Reset the user password using a valid password reset OTP."""
-    normalized_email = _normalize_email(email)
-    result = await db.execute(
-        select(User).where(func.lower(User.email) == normalized_email)
-    )
-    user = result.scalar_one_or_none()
-
-    if not user or user.status == UserStatus.BLOCKED:
-        raise bad_request("Invalid email or OTP")
-
-    if not user.password_reset_otp or not user.password_reset_otp_expires_at:
-        raise bad_request("No password reset request found. Please request a new OTP.")
+    user = await _get_user_for_password_reset(email, db)
 
     if user.password_reset_otp != otp:
         raise bad_request("Invalid OTP")
 
     # ─── Fix: ensure timezone-aware comparison ────────────────────
-    expires_at = user.password_reset_otp_expires_at
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-
-    if expires_at < datetime.now(timezone.utc):
-        # Clear expired OTP
-        user.password_reset_otp = None
-        user.password_reset_otp_expires_at = None
-        await db.commit()
-        raise bad_request("OTP has expired. Please request a new OTP.")
+    await _ensure_password_reset_otp_not_expired(user, db)
 
     # OTP is valid — reset password and clear OTP
     user.hashed_password = hash_password(new_password)
@@ -403,6 +412,34 @@ def _generate_password_reset_otp() -> tuple[str, datetime]:
     otp = f"{secrets.randbelow(1_000_000):06d}"
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=PASSWORD_RESET_OTP_EXPIRE_MINUTES)
     return otp, expires_at
+
+
+async def _get_user_for_password_reset(email: str, db: AsyncSession) -> User:
+    normalized_email = _normalize_email(email)
+    result = await db.execute(
+        select(User).where(func.lower(User.email) == normalized_email)
+    )
+    user = result.scalar_one_or_none()
+
+    if not user or user.status == UserStatus.BLOCKED:
+        raise bad_request("Invalid email or OTP")
+
+    if not user.password_reset_otp or not user.password_reset_otp_expires_at:
+        raise bad_request("No password reset request found. Please request a new OTP.")
+
+    return user
+
+
+async def _ensure_password_reset_otp_not_expired(user: User, db: AsyncSession) -> None:
+    expires_at = user.password_reset_otp_expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+    if expires_at < datetime.now(timezone.utc):
+        user.password_reset_otp = None
+        user.password_reset_otp_expires_at = None
+        await db.commit()
+        raise bad_request("OTP has expired. Please request a new OTP.")
 
 
 async def _verify_google_token(id_token: str) -> dict:

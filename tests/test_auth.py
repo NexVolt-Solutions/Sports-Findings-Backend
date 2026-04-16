@@ -136,6 +136,29 @@ async def test_verify_email_success(client: AsyncClient, db_session):
     assert "verified" in response.json()["message"].lower()
 
 
+async def test_resend_verification_otp_generates_new_code(client: AsyncClient, db_session):
+    email = "resend_verify@example.com"
+    await client.post(
+        "/api/v1/auth/register",
+        data=register_payload(full_name="Resend Verify", email=email),
+    )
+
+    result = await db_session.execute(select(User).where(User.email == email))
+    user = result.scalar_one()
+    first_otp = user.email_verification_otp
+
+    response = await client.post(
+        "/api/v1/auth/resend-verification-otp",
+        json={"email": email},
+    )
+    assert response.status_code == 200
+
+    result = await db_session.execute(select(User).where(User.email == email))
+    user = result.scalar_one()
+    assert user.email_verification_otp is not None
+    assert user.email_verification_otp != first_otp
+
+
 async def test_register_verified_duplicate_email_conflict(client: AsyncClient, db_session):
     email = "verified-duplicate@example.com"
     payload = register_payload(
@@ -235,6 +258,65 @@ async def test_forgot_password_known_email(client: AsyncClient):
     assert response.status_code == 200
 
 
+async def test_verify_reset_password_otp_success(client: AsyncClient, db_session):
+    email = "verify_reset_otp@example.com"
+    await client.post(
+        "/api/v1/auth/register",
+        data=register_payload(full_name="Verify Reset OTP", email=email),
+    )
+
+    result = await db_session.execute(select(User).where(User.email == email))
+    user = result.scalar_one()
+    user.status = UserStatus.ACTIVE
+    user.email_verification_otp = None
+    user.email_verification_otp_expires_at = None
+    await db_session.commit()
+
+    await client.post("/api/v1/auth/forgot-password", json={"email": email})
+
+    result = await db_session.execute(select(User).where(User.email == email))
+    user = result.scalar_one()
+
+    response = await client.post(
+        "/api/v1/auth/verify-reset-password-otp",
+        json={"email": email, "otp": user.password_reset_otp},
+    )
+    assert response.status_code == 200
+    assert "otp verified" in response.json()["message"].lower()
+
+
+async def test_resend_reset_password_otp_generates_new_code(client: AsyncClient, db_session):
+    email = "resend_reset@example.com"
+    await client.post(
+        "/api/v1/auth/register",
+        data=register_payload(full_name="Resend Reset", email=email),
+    )
+
+    result = await db_session.execute(select(User).where(User.email == email))
+    user = result.scalar_one()
+    user.status = UserStatus.ACTIVE
+    user.email_verification_otp = None
+    user.email_verification_otp_expires_at = None
+    await db_session.commit()
+
+    await client.post("/api/v1/auth/forgot-password", json={"email": email})
+
+    result = await db_session.execute(select(User).where(User.email == email))
+    user = result.scalar_one()
+    first_otp = user.password_reset_otp
+
+    response = await client.post(
+        "/api/v1/auth/resend-reset-password-otp",
+        json={"email": email},
+    )
+    assert response.status_code == 200
+
+    result = await db_session.execute(select(User).where(User.email == email))
+    user = result.scalar_one()
+    assert user.password_reset_otp is not None
+    assert user.password_reset_otp != first_otp
+
+
 async def test_reset_password_with_otp_success(client: AsyncClient, db_session):
     # Register and verify a user first
     email = "reset@example.com"
@@ -271,7 +353,8 @@ async def test_reset_password_with_otp_success(client: AsyncClient, db_session):
         json={
             "email": email,
             "otp": otp,
-            "new_password": "NewSecure123"
+            "new_password": "NewSecure123",
+            "confirm_password": "NewSecure123",
         },
     )
     assert response.status_code == 200
@@ -307,6 +390,7 @@ async def test_reset_password_allows_login_with_new_password(client: AsyncClient
             "email": email.upper(),
             "otp": otp,
             "new_password": "UpdatedSecure123",
+            "confirm_password": "UpdatedSecure123",
         },
     )
     assert reset_response.status_code == 200
@@ -344,10 +428,42 @@ async def test_reset_password_invalid_otp(client: AsyncClient, db_session):
         json={
             "email": email,
             "otp": "000000",
-            "new_password": "NewSecure123"
+            "new_password": "NewSecure123",
+            "confirm_password": "NewSecure123",
         },
     )
     assert response.status_code == 400
+
+
+async def test_reset_password_requires_confirm_password_match(client: AsyncClient, db_session):
+    email = "reset_mismatch@example.com"
+    await client.post(
+        "/api/v1/auth/register",
+        data=register_payload(full_name="Reset Mismatch User", email=email),
+    )
+
+    result = await db_session.execute(select(User).where(User.email == email))
+    user = result.scalar_one()
+    user.status = UserStatus.ACTIVE
+    user.email_verification_otp = None
+    user.email_verification_otp_expires_at = None
+    await db_session.commit()
+
+    await client.post("/api/v1/auth/forgot-password", json={"email": email})
+
+    result = await db_session.execute(select(User).where(User.email == email))
+    user = result.scalar_one()
+
+    response = await client.post(
+        "/api/v1/auth/reset-password",
+        json={
+            "email": email,
+            "otp": user.password_reset_otp,
+            "new_password": "NewSecure123",
+            "confirm_password": "Different123",
+        },
+    )
+    assert response.status_code == 422
 
 
 async def test_health_check(client: AsyncClient):

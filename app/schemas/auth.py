@@ -80,10 +80,28 @@ class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
 
+class ResendResetPasswordOtpRequest(BaseModel):
+    email: EmailStr
+
+
+class VerifyResetPasswordOtpRequest(BaseModel):
+    email: EmailStr
+    otp: str
+
+    @field_validator("otp")
+    @classmethod
+    def validate_otp(cls, v: str) -> str:
+        otp = v.strip()
+        if not re.fullmatch(r"\d{6}", otp):
+            raise ValueError("OTP must be exactly 6 digits")
+        return otp
+
+
 class ResetPasswordRequest(BaseModel):
     email: EmailStr
     otp: str
     new_password: str
+    confirm_password: str
 
     @field_validator("otp")
     @classmethod
@@ -103,3 +121,9 @@ class ResetPasswordRequest(BaseModel):
         if not re.search(r"\d", v):
             raise ValueError("Password must contain at least one number")
         return v
+
+    @model_validator(mode="after")
+    def validate_confirmation(self) -> "ResetPasswordRequest":
+        if self.new_password != self.confirm_password:
+            raise ValueError("Password and confirm password must match")
+        return self
