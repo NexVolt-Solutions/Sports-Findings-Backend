@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 import httpx
 from fastapi import BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from app.config import settings
 from app.models.user import User
@@ -45,12 +45,19 @@ EMAIL_OTP_EXPIRE_MINUTES = 2
 PASSWORD_RESET_OTP_EXPIRE_MINUTES = 2
 
 
+def _normalize_email(email: str) -> str:
+    return email.strip().lower()
+
+
 async def register_user(
     payload: RegisterRequest,
     db: AsyncSession,
     background_tasks: BackgroundTasks,
 ) -> MessageResponse:
-    result = await db.execute(select(User).where(User.email == payload.email))
+    normalized_email = _normalize_email(payload.email)
+    result = await db.execute(
+        select(User).where(func.lower(User.email) == normalized_email)
+    )
     existing = result.scalar_one_or_none()
 
     if existing:
@@ -78,7 +85,7 @@ async def register_user(
     verification_otp, otp_expires_at = _generate_email_otp()
 
     user = User(
-        email=payload.email,
+        email=normalized_email,
         hashed_password=hashed,
         full_name=payload.full_name.strip(),
         avatar_url=payload.avatar_url,
@@ -109,7 +116,10 @@ async def login_user(
     payload: LoginRequest,
     db: AsyncSession,
 ) -> TokenResponse:
-    result = await db.execute(select(User).where(User.email == payload.email))
+    normalized_email = _normalize_email(payload.email)
+    result = await db.execute(
+        select(User).where(func.lower(User.email) == normalized_email)
+    )
     user = result.scalar_one_or_none()
 
     if not user or not user.hashed_password:
@@ -140,7 +150,7 @@ async def google_login(
     google_data = await _verify_google_token(payload.id_token)
 
     google_id = google_data.get("sub")
-    email = google_data.get("email")
+    email = _normalize_email(google_data.get("email", ""))
     full_name = google_data.get("name", email.split("@")[0])
     avatar_url = google_data.get("picture")
 
@@ -149,7 +159,7 @@ async def google_login(
 
     result = await db.execute(
         select(User).where(
-            (User.google_id == google_id) | (User.email == email)
+            (User.google_id == google_id) | (func.lower(User.email) == email)
         )
     )
     user = result.scalar_one_or_none()
@@ -217,7 +227,10 @@ async def verify_email(
     otp: str,
     db: AsyncSession,
 ) -> MessageResponse:
-    result = await db.execute(select(User).where(User.email == email))
+    normalized_email = _normalize_email(email)
+    result = await db.execute(
+        select(User).where(func.lower(User.email) == normalized_email)
+    )
     user = result.scalar_one_or_none()
 
     if not user:
@@ -261,7 +274,10 @@ async def resend_verification_otp(
     db: AsyncSession,
     background_tasks: BackgroundTasks,
 ) -> MessageResponse:
-    result = await db.execute(select(User).where(User.email == email))
+    normalized_email = _normalize_email(email)
+    result = await db.execute(
+        select(User).where(func.lower(User.email) == normalized_email)
+    )
     user = result.scalar_one_or_none()
 
     if not user:
@@ -306,7 +322,10 @@ async def forgot_password(
         message="If an account with that email exists, a password reset OTP has been sent."
     )
 
-    result = await db.execute(select(User).where(User.email == email))
+    normalized_email = _normalize_email(email)
+    result = await db.execute(
+        select(User).where(func.lower(User.email) == normalized_email)
+    )
     user = result.scalar_one_or_none()
 
     if not user or user.status == UserStatus.BLOCKED or not user.hashed_password:
@@ -335,7 +354,10 @@ async def reset_password(
     db: AsyncSession,
 ) -> MessageResponse:
     """Reset the user password using a valid password reset OTP."""
-    result = await db.execute(select(User).where(User.email == email))
+    normalized_email = _normalize_email(email)
+    result = await db.execute(
+        select(User).where(func.lower(User.email) == normalized_email)
+    )
     user = result.scalar_one_or_none()
 
     if not user or user.status == UserStatus.BLOCKED:
