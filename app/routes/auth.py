@@ -15,6 +15,7 @@ from app.schemas.auth import (
     ForgotPasswordRequest,
     ResendResetPasswordOtpRequest,
     VerifyResetPasswordOtpRequest,
+    VerifyResetPasswordOtpResponse,
     ResetPasswordRequest,
 )
 from app.schemas.common import MessageResponse
@@ -39,17 +40,12 @@ async def register(
     Register a new user with multipart/form-data.
     Optionally accepts an avatar image file.
     Sends a verification email as a background task.
-
-    All field validation (password strength, name length, terms acceptance,
-    password confirmation) is handled by RegisterRequest — no duplicate
-    checks here.
     """
     avatar_url = None
     if avatar and avatar.filename:
         from app.utils.s3 import upload_avatar_to_s3
         avatar_url = await upload_avatar_to_s3("registration", avatar)
 
-    # Pydantic validates all fields — raises 422 with structured errors if invalid.
     payload = RegisterRequest(
         full_name=full_name,
         email=email,
@@ -82,8 +78,7 @@ async def google_auth(
     """
     Authenticate with a Google ID token.
     Creates a new account if the user does not exist.
-    Automatically activates PENDING_VERIFICATION accounts — Google vouches
-    for the email ownership.
+    Automatically activates PENDING_VERIFICATION accounts.
     """
     return await auth_service.google_login(payload, db)
 
@@ -103,11 +98,8 @@ async def logout(
 ):
     """
     Logout the user.
-    Validates the refresh token is structurally sound, then instructs the
-    client to discard both tokens.
-    Token blacklisting can be added in Phase 2 via Redis.
+    Validates the refresh token structure then instructs client to discard tokens.
     """
-    # Validate token structure even without blacklisting — rejects garbage requests.
     decode_token(payload.refresh_token, token_type="refresh")
     return MessageResponse(message="Logged out successfully.")
 
@@ -140,8 +132,8 @@ async def forgot_password(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Request a password reset email.
-    Always returns the same response — never reveals if email exists.
+    Request a password reset OTP via email.
+    Always returns same response — never reveals if email exists.
     """
     return await auth_service.forgot_password(payload.email, db, background_tasks)
 
@@ -158,12 +150,16 @@ async def resend_reset_password_otp(
     )
 
 
-@router.post("/verify-reset-password-otp", response_model=MessageResponse)
+@router.post("/verify-reset-password-otp", response_model=VerifyResetPasswordOtpResponse)
 async def verify_reset_password_otp(
     payload: VerifyResetPasswordOtpRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """Verify the password reset OTP before accepting a new password."""
+    """
+    Verify the password reset OTP.
+    Returns a reset_token to be used in the reset-password step.
+    No need to pass email or OTP again after this step.
+    """
     return await auth_service.verify_reset_password_otp(payload.email, payload.otp, db)
 
 
@@ -172,8 +168,11 @@ async def reset_password(
     payload: ResetPasswordRequest,
     db: AsyncSession = Depends(get_db),
 ):
-    """Reset the user's password using a valid reset OTP."""
+    """
+    Reset the user's password using the reset_token from verify-reset-password-otp.
+    Only requires reset_token + new_password + confirm_password.
+    """
     return await auth_service.reset_password(
-        payload.email, payload.otp, payload.new_password, db
+        payload.reset_token, payload.new_password, db
     )
 

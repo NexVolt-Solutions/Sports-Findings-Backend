@@ -16,6 +16,7 @@ from app.schemas.auth import (
     LoginRequest,
     GoogleAuthRequest,
     TokenResponse,
+    VerifyResetPasswordOtpResponse,
 )
 from app.schemas.common import MessageResponse
 from app.utils.security import (
@@ -41,7 +42,6 @@ from app.background.tasks import (
 logger = logging.getLogger(__name__)
 
 GOOGLE_TOKEN_INFO_URL = "https://oauth2.googleapis.com/tokeninfo"
-
 EMAIL_OTP_EXPIRE_MINUTES = 2
 PASSWORD_RESET_OTP_EXPIRE_MINUTES = 2
 
@@ -60,6 +60,18 @@ def _generate_otp(expire_minutes: int) -> tuple[str, datetime]:
     return otp, expires_at
 
 
+def _create_reset_token(user_id: str) -> str:
+    """Create a short-lived JWT reset token valid for 15 minutes."""
+    from jose import jwt
+    expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+    payload = {
+        "sub": user_id,
+        "exp": expire,
+        "type": "reset",
+    }
+    return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
+
+
 async def register_user(
     payload: RegisterRequest,
     db: AsyncSession,
@@ -74,7 +86,6 @@ async def register_user(
     if existing:
         if existing.status == UserStatus.PENDING_VERIFICATION:
             verification_otp, otp_expires_at = _generate_otp(EMAIL_OTP_EXPIRE_MINUTES)
-            # full_name is already stripped by the Pydantic validator
             existing.full_name = payload.full_name
             existing.avatar_url = payload.avatar_url
             existing.hashed_password = hash_password(payload.password)
@@ -99,7 +110,6 @@ async def register_user(
     user = User(
         email=normalized_email,
         hashed_password=hashed,
-        # full_name is already stripped by the Pydantic validator
         full_name=payload.full_name,
         avatar_url=payload.avatar_url,
         status=UserStatus.PENDING_VERIFICATION,
@@ -108,10 +118,6 @@ async def register_user(
         email_verification_otp_expires_at=otp_expires_at,
     )
     db.add(user)
-
-    # flush() to get user.id before passing it to the background task.
-    # BackgroundTasks runs post-response (after commit), so the user row
-    # will exist by the time the task executes — this ordering is safe.
     await db.flush()
 
     background_tasks.add_task(
@@ -185,8 +191,6 @@ async def google_login(
         if user.status == UserStatus.BLOCKED:
             raise AccountBlocked()
 
-        # Google has verified ownership of this email, so a PENDING_VERIFICATION
-        # account can be safely activated — no need to complete the OTP flow.
         if user.status == UserStatus.PENDING_VERIFICATION:
             user.status = UserStatus.ACTIVE
             user.email_verification_otp = None
@@ -343,9 +347,8 @@ async def forgot_password(
 ) -> MessageResponse:
     """
     Send a password reset OTP via email.
-    Always returns the same message — never reveals whether the email exists.
+    Always returns same message — never reveals whether email exists.
     Each call generates a NEW OTP, invalidating the previous one.
-    Only works for password-based accounts (hashed_password is not None).
     """
     generic_message = MessageResponse(
         message="If an account with that email exists, a password reset OTP has been sent."
@@ -363,7 +366,6 @@ async def forgot_password(
     reset_otp, otp_expires_at = _generate_otp(PASSWORD_RESET_OTP_EXPIRE_MINUTES)
     user.password_reset_otp = reset_otp
     user.password_reset_otp_expires_at = otp_expires_at
-    # Clear any previously verified flag so a new OTP cycle must be completed.
     user.password_reset_otp_verified = False
     await db.commit()
 
@@ -384,8 +386,7 @@ async def resend_reset_password_otp(
 ) -> MessageResponse:
     """
     Resend a fresh password reset OTP.
-    Intentionally delegates to forgot_password — each call issues a new OTP
-    and invalidates the previous one.
+    Delegates to forgot_password — each call issues a new OTP.
     """
     return await forgot_password(email, db, background_tasks)
 
@@ -394,11 +395,10 @@ async def verify_reset_password_otp(
     email: str,
     otp: str,
     db: AsyncSession,
-) -> MessageResponse:
+) -> VerifyResetPasswordOtpResponse:
     """
-    Step 2 of 3 — verify the password reset OTP.
-    Sets password_reset_otp_verified=True so reset_password() knows step 2
-    was completed and the client didn't skip straight to step 3.
+    Step 2 of 3 — verify OTP and return a short-lived reset token.
+    Frontend uses reset_token in Step 3 — no need to pass email or OTP again.
     """
     user = await _get_user_for_password_reset(email, db)
 
@@ -407,34 +407,47 @@ async def verify_reset_password_otp(
 
     await _ensure_password_reset_otp_not_expired(user, db)
 
-    # Mark OTP as verified — required by reset_password() before it will proceed.
+    # Generate short-lived reset token (15 minutes)
+    reset_token = _create_reset_token(str(user.id))
+
+    # Mark OTP as verified
     user.password_reset_otp_verified = True
     await db.commit()
 
-    return MessageResponse(message="OTP verified successfully. You can now set a new password.")
+    return VerifyResetPasswordOtpResponse(
+        reset_token=reset_token,
+        message="OTP verified successfully. You can now set a new password.",
+    )
 
 
 async def reset_password(
-    email: str,
-    otp: str,
+    reset_token: str,
     new_password: str,
     db: AsyncSession,
 ) -> MessageResponse:
     """
-    Step 3 of 3 — reset the password.
-    Requires that step 2 (verify_reset_password_otp) was completed first.
-    Re-validates the OTP and expiry as a defence-in-depth measure.
+    Step 3 of 3 — reset password using reset token.
+    Only needs reset_token + new_password.
+    No email or OTP required.
     """
-    user = await _get_user_for_password_reset(email, db)
+    # Decode reset token to get user_id
+    try:
+        user_id_str = decode_token(reset_token, token_type="reset")
+        user_id = uuid.UUID(user_id_str)
+    except Exception:
+        raise bad_request("Invalid or expired reset token")
 
-    # Guard: step 2 must have been completed — prevents skipping OTP verification.
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+
+    if not user or user.status == UserStatus.BLOCKED:
+        raise bad_request("Invalid or expired reset token")
+
+    # Guard: step 2 must have been completed
     if not getattr(user, "password_reset_otp_verified", False):
-        raise bad_request("OTP not verified. Please complete the OTP verification step first.")
-
-    if user.password_reset_otp != otp:
-        raise bad_request("Invalid OTP")
-
-    await _ensure_password_reset_otp_not_expired(user, db)
+        raise bad_request(
+            "OTP not verified. Please complete the OTP verification step first."
+        )
 
     user.hashed_password = hash_password(new_password)
     user.password_reset_otp = None
@@ -449,10 +462,7 @@ async def reset_password(
 # ─── Internal Helpers ─────────────────────────────────────────────────────────
 
 async def _get_user_for_password_reset(email: str, db: AsyncSession) -> User:
-    """
-    Fetch and validate a user for any step of the password reset flow.
-    Raises bad_request for missing users, blocked accounts, or missing OTP state.
-    """
+    """Fetch and validate user for password reset flow."""
     normalized_email = _normalize_email(email)
     result = await db.execute(
         select(User).where(func.lower(User.email) == normalized_email)
@@ -463,16 +473,17 @@ async def _get_user_for_password_reset(email: str, db: AsyncSession) -> User:
         raise bad_request("Invalid email or OTP")
 
     if not user.password_reset_otp or not user.password_reset_otp_expires_at:
-        raise bad_request("No password reset request found. Please request a new OTP.")
+        raise bad_request(
+            "No password reset request found. Please request a new OTP."
+        )
 
     return user
 
 
-async def _ensure_password_reset_otp_not_expired(user: User, db: AsyncSession) -> None:
-    """
-    Check OTP expiry, ensuring timezone-aware comparison.
-    Clears the OTP fields and raises bad_request if expired.
-    """
+async def _ensure_password_reset_otp_not_expired(
+    user: User, db: AsyncSession
+) -> None:
+    """Check OTP expiry with timezone-aware comparison."""
     expires_at = user.password_reset_otp_expires_at
     if expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=timezone.utc)
@@ -508,4 +519,3 @@ async def _verify_google_token(id_token: str) -> dict:
         logger.error(f"Google token verification HTTP error: {e}")
         raise external_service_error("Google authentication")
 
-    
