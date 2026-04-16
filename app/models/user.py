@@ -93,6 +93,12 @@ class User(UUIDMixin, TimestampMixin, Base):
     )
 
     # ─── Relationships ────────────────────────────────────────────────────────
+    password_reset_otp_verified: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        server_default=text("false"),
+        nullable=False,
+    )
     sports: Mapped[list["UserSport"]] = relationship(
         "UserSport", back_populates="user", cascade="all, delete-orphan"
     )

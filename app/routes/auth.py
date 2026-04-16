@@ -1,7 +1,6 @@
-from fastapi import APIRouter, Depends, BackgroundTasks, Form, UploadFile, File, HTTPException
+from fastapi import APIRouter, Depends, BackgroundTasks, Form, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
-import re
 from pydantic import EmailStr
 
 from app.database import get_db
@@ -20,6 +19,7 @@ from app.schemas.auth import (
 )
 from app.schemas.common import MessageResponse
 from app.services import auth_service
+from app.utils.security import decode_token
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -39,53 +39,17 @@ async def register(
     Register a new user with multipart/form-data.
     Optionally accepts an avatar image file.
     Sends a verification email as a background task.
+
+    All field validation (password strength, name length, terms acceptance,
+    password confirmation) is handled by RegisterRequest — no duplicate
+    checks here.
     """
-    # ─── Validate full_name ───────────────────────────────────────
-    full_name = full_name.strip()
-    if len(full_name) < 2:
-        raise HTTPException(
-            status_code=422,
-            detail="Full name must be at least 2 characters"
-        )
-
-    # ─── Validate password ────────────────────────────────────────
-    if len(password) < 8:
-        raise HTTPException(
-            status_code=422,
-            detail="Password must be at least 8 characters long"
-        )
-    if not re.search(r"[A-Z]", password):
-        raise HTTPException(
-            status_code=422,
-            detail="Password must contain at least one uppercase letter"
-        )
-    if not re.search(r"\d", password):
-        raise HTTPException(
-            status_code=422,
-            detail="Password must contain at least one number"
-        )
-
-    # ─── Validate confirm_password ────────────────────────────────
-    if password != confirm_password:
-        raise HTTPException(
-            status_code=422,
-            detail="Password and confirm password must match"
-        )
-
-    # ─── Validate accept_terms ────────────────────────────────────
-    if not accept_terms:
-        raise HTTPException(
-            status_code=422,
-            detail="You must accept the Terms of Service and Privacy Policy"
-        )
-
-    # ─── Upload avatar to S3 if provided ──────────────────────────
     avatar_url = None
     if avatar and avatar.filename:
         from app.utils.s3 import upload_avatar_to_s3
         avatar_url = await upload_avatar_to_s3("registration", avatar)
 
-    # ─── Build payload and register ───────────────────────────────
+    # Pydantic validates all fields — raises 422 with structured errors if invalid.
     payload = RegisterRequest(
         full_name=full_name,
         email=email,
@@ -118,6 +82,8 @@ async def google_auth(
     """
     Authenticate with a Google ID token.
     Creates a new account if the user does not exist.
+    Automatically activates PENDING_VERIFICATION accounts — Google vouches
+    for the email ownership.
     """
     return await auth_service.google_login(payload, db)
 
@@ -137,9 +103,12 @@ async def logout(
 ):
     """
     Logout the user.
-    In a stateless JWT setup, the client discards the tokens.
+    Validates the refresh token is structurally sound, then instructs the
+    client to discard both tokens.
     Token blacklisting can be added in Phase 2 via Redis.
     """
+    # Validate token structure even without blacklisting — rejects garbage requests.
+    decode_token(payload.refresh_token, token_type="refresh")
     return MessageResponse(message="Logged out successfully.")
 
 
@@ -207,3 +176,4 @@ async def reset_password(
     return await auth_service.reset_password(
         payload.email, payload.otp, payload.new_password, db
     )
+
