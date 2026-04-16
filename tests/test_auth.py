@@ -155,6 +155,46 @@ async def test_register_verified_duplicate_email_conflict(client: AsyncClient, d
     assert response.status_code == 409
 
 
+async def test_register_duplicate_email_is_case_insensitive(client: AsyncClient):
+    payload = register_payload(
+        full_name="Case User",
+        email="CaseSensitive@example.com",
+    )
+    await client.post("/api/v1/auth/register", data=payload)
+
+    response = await client.post(
+        "/api/v1/auth/register",
+        data=register_payload(
+            full_name="Case User",
+            email="casesensitive@example.com",
+        ),
+    )
+    assert response.status_code == 201
+    assert "new 6-digit verification otp" in response.json()["message"].lower()
+
+
+async def test_login_email_is_case_insensitive(client: AsyncClient, db_session):
+    email = "CaseLogin@example.com"
+    await client.post(
+        "/api/v1/auth/register",
+        data=register_payload(full_name="Case Login", email=email),
+    )
+
+    result = await db_session.execute(select(User).where(User.email == email.lower()))
+    user = result.scalar_one()
+    user.status = UserStatus.ACTIVE
+    user.email_verification_otp = None
+    user.email_verification_otp_expires_at = None
+    await db_session.commit()
+
+    response = await client.post(
+        "/api/v1/auth/login",
+        json={"email": "CASELOGIN@example.com", "password": "Secure123"},
+    )
+    assert response.status_code == 200
+    assert response.json()["access_token"]
+
+
 async def test_refresh_invalid_token(client: AsyncClient):
     response = await client.post(
         "/api/v1/auth/refresh",
@@ -236,6 +276,47 @@ async def test_reset_password_with_otp_success(client: AsyncClient, db_session):
     )
     assert response.status_code == 200
     assert "reset successfully" in response.json()["message"].lower()
+
+
+async def test_reset_password_allows_login_with_new_password(client: AsyncClient, db_session):
+    email = "reset_login@example.com"
+    await client.post(
+        "/api/v1/auth/register",
+        data=register_payload(full_name="Reset Login User", email=email),
+    )
+
+    result = await db_session.execute(select(User).where(User.email == email))
+    user = result.scalar_one()
+    user.status = UserStatus.ACTIVE
+    user.email_verification_otp = None
+    user.email_verification_otp_expires_at = None
+    await db_session.commit()
+
+    await client.post(
+        "/api/v1/auth/forgot-password",
+        json={"email": email.upper()},
+    )
+
+    result = await db_session.execute(select(User).where(User.email == email))
+    user = result.scalar_one()
+    otp = user.password_reset_otp
+
+    reset_response = await client.post(
+        "/api/v1/auth/reset-password",
+        json={
+            "email": email.upper(),
+            "otp": otp,
+            "new_password": "UpdatedSecure123",
+        },
+    )
+    assert reset_response.status_code == 200
+
+    login_response = await client.post(
+        "/api/v1/auth/login",
+        json={"email": email.upper(), "password": "UpdatedSecure123"},
+    )
+    assert login_response.status_code == 200
+    assert login_response.json()["access_token"]
 
 
 async def test_reset_password_invalid_otp(client: AsyncClient, db_session):
