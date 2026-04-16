@@ -10,6 +10,14 @@ class RegisterRequest(BaseModel):
     avatar_url: str | None = None
     accept_terms: bool
 
+    @field_validator("full_name")
+    @classmethod
+    def validate_full_name(cls, v: str) -> str:
+        v = v.strip()
+        if len(v) < 2:
+            raise ValueError("Full name must be at least 2 characters")
+        return v
+
     @field_validator("password")
     @classmethod
     def validate_password(cls, v: str) -> str:
@@ -19,14 +27,6 @@ class RegisterRequest(BaseModel):
             raise ValueError("Password must contain at least one uppercase letter")
         if not re.search(r"\d", v):
             raise ValueError("Password must contain at least one number")
-        return v
-
-    @field_validator("full_name")
-    @classmethod
-    def validate_full_name(cls, v: str) -> str:
-        v = v.strip()
-        if len(v) < 2:
-            raise ValueError("Full name must be at least 2 characters")
         return v
 
     @model_validator(mode="after")
@@ -101,6 +101,8 @@ class ResetPasswordRequest(BaseModel):
     email: EmailStr
     otp: str
     new_password: str
+    # confirm_password is validated here by Pydantic but not forwarded to the
+    # service — the service only needs new_password once the match is confirmed.
     confirm_password: str
 
     @field_validator("otp")
@@ -127,3 +129,4 @@ class ResetPasswordRequest(BaseModel):
         if self.new_password != self.confirm_password:
             raise ValueError("Password and confirm password must match")
         return self
+
