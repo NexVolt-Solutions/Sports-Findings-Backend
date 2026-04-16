@@ -97,21 +97,16 @@ class VerifyResetPasswordOtpRequest(BaseModel):
         return otp
 
 
-class ResetPasswordRequest(BaseModel):
-    email: EmailStr
-    otp: str
-    new_password: str
-    # confirm_password is validated here by Pydantic but not forwarded to the
-    # service — the service only needs new_password once the match is confirmed.
-    confirm_password: str
+class VerifyResetPasswordOtpResponse(BaseModel):
+    """Returned after successful OTP verification — contains reset token."""
+    reset_token: str
+    message: str
 
-    @field_validator("otp")
-    @classmethod
-    def validate_otp(cls, v: str) -> str:
-        otp = v.strip()
-        if not re.fullmatch(r"\d{6}", otp):
-            raise ValueError("OTP must be exactly 6 digits")
-        return otp
+
+class ResetPasswordRequest(BaseModel):
+    reset_token: str
+    new_password: str
+    confirm_password: str
 
     @field_validator("new_password")
     @classmethod
@@ -130,3 +125,4 @@ class ResetPasswordRequest(BaseModel):
             raise ValueError("Password and confirm password must match")
         return self
 
+    
