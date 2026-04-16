@@ -178,7 +178,9 @@ All REST endpoints are versioned under `/api/v1`:
 - `POST /verify-email` — Verify email with OTP
 - `POST /resend-verification-otp` — Resend verification OTP
 - `POST /forgot-password` — Request password reset email
-- `POST /reset-password` — Reset password with OTP
+- `POST /resend-reset-password-otp` — Resend password reset OTP
+- `POST /verify-reset-password-otp` — Verify password reset OTP
+- `POST /reset-password` — Reset password after OTP verification
 
 #### **Users** (`/api/v1/users`)
 - `GET /me` — Get authenticated user's profile
