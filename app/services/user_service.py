@@ -4,6 +4,7 @@ from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
+from datetime import datetime, timezone
 
 from app.models.user import User, UserSport
 from app.models.enums import UserStatus
@@ -15,6 +16,7 @@ from app.schemas.user import (
     UserListItemResponse,
     UserSportResponse,
     UpdateProfileRequest,
+    UpdateProfileResponse,  # Added focused response
     UserStatsResponse,
     UserActionsResponse,
     UserSettingsResponse,
@@ -166,21 +168,35 @@ async def update_profile(
     payload: UpdateProfileRequest,
     db: AsyncSession,
     avatar_file: UploadFile | None = None,
-) -> UserResponse:
+) -> UpdateProfileResponse:
     """
     Update the authenticated user's profile.
     Only updates fields that are explicitly provided (non-None).
-    If sports list is provided, replaces all existing sport records.
+    
+    Fields updated:
+    - full_name: User's display name
+    - bio: User's bio/description
+    - sports: List of sports with skill levels (replaces all existing)
+    - avatar_file: Profile photo (uploaded file)
+    
+    Args:
+        user: Current authenticated user
+        payload: UpdateProfileRequest with optional fields
+        db: Database session
+        avatar_file: Optional uploaded image file
+        
+    Returns:
+        UpdateProfileResponse: Focused response with updated profile data
     """
-    # Apply scalar field updates
+    # Update name if provided
     if payload.full_name is not None:
         user.full_name = payload.full_name.strip()
+    
+    # Update bio if provided
     if payload.bio is not None:
         user.bio = payload.bio.strip()
-    if payload.location is not None:
-        user.location = payload.location.strip()
-    if payload.avatar_url is not None:
-        user.avatar_url = payload.avatar_url.strip()
+    
+    # Update avatar if file uploaded
     if avatar_file is not None:
         user.avatar_url = await save_avatar_upload(str(user.id), avatar_file)
 
@@ -211,7 +227,14 @@ async def update_profile(
     )
     updated_user = result.scalar_one()
 
-    return await get_my_profile(updated_user, db)
+    return UpdateProfileResponse(
+        id=updated_user.id,
+        full_name=updated_user.full_name,
+        bio=updated_user.bio,
+        avatar_url=updated_user.avatar_url,
+        sports=[UserSportResponse.model_validate(s) for s in updated_user.sports],
+        updated_at=datetime.now(timezone.utc),
+    )
 
 
 async def get_user_profile(
@@ -410,4 +433,3 @@ async def get_following(
         .order_by(Follow.created_at.desc())
     )
     return await paginate(db, query, pagination)
-

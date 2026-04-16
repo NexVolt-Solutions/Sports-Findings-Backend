@@ -112,7 +112,13 @@ IMPLEMENTATION_SUMMARY.txt
 DEPLOYMENT_CHECKLIST.md
 DOCUMENTATION_INDEX.md
 CONTENT_PAGES_SUMMARY.md
-
+API_IMPLEMENTATION_COMPLETE.md
+API_SIMPLIFICATION_CHANGELOG.md
+QUICK_REFERENCE_UPDATE_PROFILE.md
+START_HERE.md
+UPDATE_PROFILE_API_SUMMARY.md
+VISUAL_SUMMARY_API_CHANGES.md
 # ─── Test & validation scripts (Development only) ──────────────────────────
 test_imports.py
 validate_google_maps.py
+test_modified_api.py

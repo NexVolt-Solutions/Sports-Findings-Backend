@@ -113,13 +113,41 @@ class UserListItemResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# ─── Update Profile Response ──────────────────────────────────────────────────
+
+class UpdateProfileResponse(BaseModel):
+    """
+    Focused response for profile update operations.
+    Returns only the essential updated profile data.
+    """
+    id: uuid.UUID
+    full_name: str
+    bio: str | None
+    avatar_url: str | None
+    sports: list[UserSportResponse]
+    updated_at: datetime
+    model_config = {"from_attributes": True}
+
+
 # ─── Update Profile Request ───────────────────────────────────────────────────
 
 class UpdateProfileRequest(BaseModel):
+    """
+    Simplified profile update request aligned with UI.
+    Accepts only editable fields from the frontend:
+    - Name
+    - Bio
+    - Sport Type and Skill Level
+    - Profile Photo (via multipart/form-data)
+    
+    Usage: Use multipart/form-data with optional fields:
+    - full_name: string
+    - bio: string
+    - sports: JSON array of {sport, skill_level}
+    - avatar: file (image)
+    """
     full_name: str | None = None
     bio: str | None = None
-    location: str | None = None
-    avatar_url: str | None = None
     sports: list[UserSportRequest] | None = None
 
     

@@ -12,6 +12,7 @@ from app.schemas.common import MessageResponse, PaginatedResponse
 from app.schemas.review import CreateReviewRequest, ReviewResponse
 from app.schemas.user import (
     UpdateProfileRequest,
+    UpdateProfileResponse,  # Added focused response
     UserListItemResponse,
     UserProfileResponse,
     UserResponse,
@@ -54,6 +55,15 @@ def _read_optional_form_value(form, key: str) -> str | None:
 async def _parse_update_profile_request(
     request: Request,
 ) -> tuple[UpdateProfileRequest, UploadFile | None]:
+    """
+    Parse the update profile request from multipart/form-data.
+    
+    Expected form fields:
+    - full_name: optional string
+    - bio: optional string
+    - sports: optional JSON array [{sport: string, skill_level: string}, ...]
+    - avatar: optional file (image)
+    """
     content_type = request.headers.get("content-type", "").lower()
 
     if "multipart/form-data" in content_type:
@@ -72,27 +82,21 @@ async def _parse_update_profile_request(
             {
                 "full_name": _read_optional_form_value(form, "full_name"),
                 "bio": _read_optional_form_value(form, "bio"),
-                "location": _read_optional_form_value(form, "location"),
-                "avatar_url": _read_optional_form_value(form, "avatar_url"),
                 "sports": sports,
             }
         )
 
-        avatar = form.get("avatar") or form.get("file")
+        avatar = form.get("avatar")
         if isinstance(avatar, (UploadFile, StarletteUploadFile)):
             return payload, avatar
         return payload, None
 
-    if "application/json" in content_type:
-        data = await request.json()
-        return UpdateProfileRequest.model_validate(data), None
-
     raise bad_request(
-        "Unsupported content type. Use application/json or multipart/form-data."
+        "Unsupported content type. Use multipart/form-data."
     )
 
 
-@router.put("/me", response_model=UserResponse)
+@router.put("/me", response_model=UpdateProfileResponse)
 async def update_my_profile(
     request: Request,
     current_user: User = Depends(get_current_active_user),
@@ -100,7 +104,29 @@ async def update_my_profile(
 ):
     """
     Update the authenticated user's profile.
-    Supports JSON and multipart/form-data (for avatar upload).
+    
+    **Content-Type:** multipart/form-data
+    
+    **Form Fields:**
+    - full_name (optional): User's display name
+    - bio (optional): User's bio/description
+    - sports (optional): JSON array of sports with skill levels
+      Example: [{"sport": "BASKETBALL", "skill_level": "INTERMEDIATE"}, ...]
+    - avatar (optional): Profile photo image file
+    
+    **Response:** Returns focused profile data with only essential fields
+    - id, full_name, bio, avatar_url, sports, updated_at
+    
+    **Example Request:**
+    ```
+    POST /users/me
+    Content-Type: multipart/form-data
+    
+    full_name: "John Doe"
+    bio: "Basketball enthusiast"
+    sports: [{"sport": "BASKETBALL", "skill_level": "INTERMEDIATE"}]
+    avatar: <image file>
+    ```
     """
     payload, avatar_file = await _parse_update_profile_request(request)
     return await user_service.update_profile(current_user, payload, db, avatar_file)
@@ -187,4 +213,3 @@ async def get_following(
 ):
     """Get paginated list of users this user follows."""
     return await user_service.get_following(user_id, pagination, db)
-
