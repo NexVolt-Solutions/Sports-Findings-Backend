@@ -12,7 +12,6 @@ class UserSummaryResponse(BaseModel):
     full_name: str
     avatar_url: str | None
     avg_rating: float
-    total_games_played: int | None = None
     model_config = {"from_attributes": True}
 
 

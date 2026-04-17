@@ -16,6 +16,7 @@ from app.models.enums import (
     MatchStatus,
     MatchPlayerRole,
     MatchPlayerStatus,
+    NotificationType,
 )
 from app.schemas.match import (
     CreateMatchRequest,
@@ -57,47 +58,23 @@ def _format_scheduled_date(value: datetime) -> str:
 def _format_scheduled_time(value: datetime) -> str:
     return value.strftime("%H:%M")
 
-# ─── ISO datetime parser (handles timezone-aware strings across Python 3.10+) ──
 
 def _parse_iso_datetime(value: str) -> datetime:
-    """
-    Parse an ISO 8601 datetime string robustly.
-
-    Python 3.10's datetime.fromisoformat() cannot parse "+00:00" timezone
-    suffixes produced by JavaScript clients or Python's own .isoformat().
-    Python 3.11+ fixed this, but we support 3.10+.
-
-    Handles:
-        "2025-06-01T14:00:00"           → naive datetime (assumed UTC)
-        "2025-06-01T14:00:00Z"          → UTC
-        "2025-06-01T14:00:00+00:00"     → UTC
-        "2025-06-01T14:00:00+05:30"     → timezone-aware
-    """
     value = value.strip()
-
-    # Replace trailing Z with +00:00 for uniform handling
     if value.endswith("Z"):
         value = value[:-1] + "+00:00"
-
     try:
-        # Python 3.11+ handles this natively
         dt = datetime.fromisoformat(value)
     except ValueError:
-        # Python 3.10 fallback: strip timezone offset manually
-        # e.g. "2025-06-01T14:00:00+00:00" → "2025-06-01T14:00:00"
         import re
         value_stripped = re.sub(r"[+-]\d{2}:\d{2}$", "", value)
         dt = datetime.fromisoformat(value_stripped)
         dt = dt.replace(tzinfo=timezone.utc)
-
-    # Ensure timezone-aware (assume UTC if naive)
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
-
     return dt
 
 
-# ─── Valid match status transitions ──────────────────────────────────────────
 VALID_TRANSITIONS: dict[MatchStatus, list[MatchStatus]] = {
     MatchStatus.OPEN:      [MatchStatus.ONGOING, MatchStatus.CANCELLED],
     MatchStatus.FULL:      [MatchStatus.ONGOING, MatchStatus.CANCELLED],
@@ -107,10 +84,9 @@ VALID_TRANSITIONS: dict[MatchStatus, list[MatchStatus]] = {
 }
 
 
-# ─── Internal helpers ─────────────────────────────────────────────────────────
+# ─── Internal Helpers ─────────────────────────────────────────────────────────
 
 async def _get_match_or_404(match_id: uuid.UUID, db: AsyncSession) -> Match:
-    """Fetch a match by ID with host eagerly loaded. Raises 404 if not found."""
     result = await db.execute(
         select(Match)
         .options(selectinload(Match.host))
@@ -123,7 +99,6 @@ async def _get_match_or_404(match_id: uuid.UUID, db: AsyncSession) -> Match:
 
 
 async def _count_active_players(match_id: uuid.UUID, db: AsyncSession) -> int:
-    """Returns the number of active (not left/removed) players in a match."""
     result = await db.execute(
         select(func.count()).where(
             and_(
@@ -138,10 +113,6 @@ async def _count_active_players(match_id: uuid.UUID, db: AsyncSession) -> int:
 async def _fetch_match_participants(
     match_id: uuid.UUID, db: AsyncSession
 ) -> list[MatchPlayerResponse]:
-    """
-    Fetch all active participants in a match and return as MatchPlayerResponse objects.
-    Sorted by joined_at ascending (host first).
-    """
     result = await db.execute(
         select(MatchPlayer)
         .options(selectinload(MatchPlayer.user))
@@ -153,21 +124,20 @@ async def _fetch_match_participants(
         )
         .order_by(MatchPlayer.joined_at.asc())
     )
-
     participants = []
     for mp in result.scalars().all():
         participants.append(
-                MatchPlayerResponse(
-                    user=UserSummaryResponse(
-                        id=mp.user.id,
-                        full_name=mp.user.full_name,
-                        avatar_url=mp.user.avatar_url,
-                        avg_rating=mp.user.avg_rating,
-                        total_games_played=mp.user.total_games_played,
-                    ),
-                    role=mp.role.value,
-                    joined_at=mp.joined_at,
-                )
+            MatchPlayerResponse(
+                user=UserSummaryResponse(
+                    id=mp.user.id,
+                    full_name=mp.user.full_name,
+                    avatar_url=mp.user.avatar_url,
+                    avg_rating=mp.user.avg_rating,
+                    total_games_played=mp.user.total_games_played,
+                ),
+                role=mp.role.value,
+                joined_at=mp.joined_at,
+            )
         )
     return participants
 
@@ -176,15 +146,8 @@ async def _count_active_players_for_match_ids(
     match_ids: list[uuid.UUID],
     db: AsyncSession,
 ) -> dict[uuid.UUID, int]:
-    """
-    Batch-count active players for many matches at once.
-
-    This avoids the N+1 query pattern where we previously counted per match
-    inside list loops.
-    """
     if not match_ids:
         return {}
-
     result = await db.execute(
         select(MatchPlayer.match_id, func.count())
         .where(
@@ -195,8 +158,6 @@ async def _count_active_players_for_match_ids(
         )
         .group_by(MatchPlayer.match_id)
     )
-
-    # result rows are tuples: (match_id, count)
     counts: dict[uuid.UUID, int] = {}
     for match_id, cnt in result.all():
         counts[match_id] = int(cnt)
@@ -209,16 +170,9 @@ async def _build_match_detail(
     db: AsyncSession,
     participants: list[MatchPlayerResponse] | None = None,
 ) -> MatchDetailResponse:
-    """
-    Builds a MatchDetailResponse from a Match ORM object.
-    Includes host's games_played and list of participants.
-    """
     location = match.location_name or match.facility_address
-
-    # Fetch participants if not provided
     if participants is None:
         participants = await _fetch_match_participants(match.id, db)
-
     return MatchDetailResponse(
         id=match.id,
         title=match.title,
@@ -257,15 +211,6 @@ async def create_match(
     db: AsyncSession,
     background_tasks: BackgroundTasks,
 ) -> MatchDetailResponse:
-    """
-    Create a new match and auto-join the host as a participant.
-
-    - Match starts with status OPEN
-    - Host is automatically added as MatchPlayer with role=Host
-    - Address geocoding is queued as a background task
-    - Match immediately appears in host's My Matches
-    """
-    # 1. Create Match record
     match = Match(
         host_id=host.id,
         sport=payload.sport,
@@ -282,9 +227,8 @@ async def create_match(
         status=MatchStatus.OPEN,
     )
     db.add(match)
-    await db.flush()  # Get match.id before creating MatchPlayer
+    await db.flush()
 
-    # 2. Auto-join host as participant with role=Host
     host_player = MatchPlayer(
         match_id=match.id,
         user_id=host.id,
@@ -292,11 +236,9 @@ async def create_match(
         status=MatchPlayerStatus.ACTIVE,
     )
     db.add(host_player)
-
     await db.commit()
     await db.refresh(match)
 
-    # 3. Reload match with host relationship
     result = await db.execute(
         select(Match)
         .options(selectinload(Match.host))
@@ -304,7 +246,6 @@ async def create_match(
     )
     match = result.scalar_one()
 
-    # 4. Only geocode when the frontend did not provide coordinates.
     if match.latitude is None or match.longitude is None:
         background_tasks.add_task(
             geocode_match_address,
@@ -314,8 +255,6 @@ async def create_match(
 
     logger.info(f"Match created: '{match.title}' (id={match.id}) by host={host.id}")
 
-    # Host counts as 1 active player
-    # Create MatchPlayerResponse for the host
     host_participant = MatchPlayerResponse(
         user=UserSummaryResponse(
             id=match.host.id,
@@ -327,7 +266,9 @@ async def create_match(
         role=MatchPlayerRole.HOST.value,
         joined_at=host_player.joined_at,
     )
-    return await _build_match_detail(match, current_players=1, db=db, participants=[host_participant])
+    return await _build_match_detail(
+        match, current_players=1, db=db, participants=[host_participant]
+    )
 
 
 # ─── Get Match by ID ──────────────────────────────────────────────────────────
@@ -336,12 +277,13 @@ async def get_match_by_id(
     match_id: uuid.UUID,
     db: AsyncSession,
 ) -> MatchDetailResponse:
-    """Fetch full details of a single match including current player count and participants."""
     match = await _get_match_or_404(match_id, db)
     current_players = await _count_active_players(match_id, db)
     participants = await _fetch_match_participants(match_id, db)
     return await _build_match_detail(match, current_players, db, participants)
 
+
+# ─── List Matches ─────────────────────────────────────────────────────────────
 
 async def list_matches_by_type(
     list_type: str,
@@ -356,9 +298,6 @@ async def list_matches_by_type(
     pagination: PaginationParams,
     db: AsyncSession,
 ) -> PaginatedResponse:
-    """
-    Unified matches listing entrypoint for frontend list variants.
-    """
     if list_type == "all":
         return await list_matches(
             sport=sport,
@@ -368,10 +307,10 @@ async def list_matches_by_type(
             pagination=pagination,
             db=db,
         )
-
     if list_type == "my":
-        return await get_my_matches(current_user=current_user, pagination=pagination, db=db)
-
+        return await get_my_matches(
+            current_user=current_user, pagination=pagination, db=db
+        )
     if list_type == "nearby":
         if lat is None or lng is None:
             raise bad_request("lat and lng are required when type=nearby")
@@ -386,11 +325,8 @@ async def list_matches_by_type(
             pagination=pagination,
             db=db,
         )
-
     raise bad_request("Invalid type. Use one of: all, my, nearby")
 
-
-# ─── List Matches ─────────────────────────────────────────────────────────────
 
 async def list_matches(
     sport: SportType | None,
@@ -400,10 +336,6 @@ async def list_matches(
     pagination: PaginationParams,
     db: AsyncSession,
 ) -> PaginatedResponse:
-    """
-    List matches with optional filters.
-    Only returns OPEN and FULL matches scheduled in the future.
-    """
     query = (
         select(Match)
         .options(selectinload(Match.host))
@@ -411,73 +343,60 @@ async def list_matches(
         .where(Match.status.in_([MatchStatus.OPEN, MatchStatus.FULL]))
         .order_by(Match.scheduled_at.asc())
     )
-
     if sport:
         query = query.where(Match.sport == sport)
     if skill_level:
         query = query.where(Match.skill_level == skill_level)
     if date_from:
         try:
-            dt_from = _parse_iso_datetime(date_from)
-            query = query.where(Match.scheduled_at >= dt_from)
+            query = query.where(Match.scheduled_at >= _parse_iso_datetime(date_from))
         except ValueError:
-            raise bad_request("Invalid date_from format. Use ISO 8601 (e.g. 2025-06-01T00:00:00).")
+            raise bad_request("Invalid date_from format.")
     if date_to:
         try:
-            dt_to = _parse_iso_datetime(date_to)
-            query = query.where(Match.scheduled_at <= dt_to)
+            query = query.where(Match.scheduled_at <= _parse_iso_datetime(date_to))
         except ValueError:
-            raise bad_request("Invalid date_to format. Use ISO 8601 (e.g. 2025-06-30T23:59:59).")
+            raise bad_request("Invalid date_to format.")
 
     paginated = await paginate(db, query, pagination)
-
-    # Build summary responses with current player counts
     match_ids = [m.id for m in paginated.items]
     active_counts = await _count_active_players_for_match_ids(match_ids, db)
 
-    items = []
-    for match in paginated.items:
-        count = active_counts.get(match.id, 0)
-        items.append(MatchSummaryResponse(
-            id=match.id,
-            title=match.title,
-            sport=match.sport,
-            skill_level=match.skill_level,
-            status=match.status,
-            scheduled_at=match.scheduled_at,
-            duration_minutes=match.duration_minutes,
-            scheduled_date=_format_scheduled_date(match.scheduled_at),
-            scheduled_time=_format_scheduled_time(match.scheduled_at),
-            location_name=match.location_name,
-            location=match.location_name or match.facility_address,
-            facility_address=match.facility_address,
-            latitude=match.latitude,
-            longitude=match.longitude,
-            max_players=match.max_players,
-            current_players=count,
+    paginated.items = [
+        MatchSummaryResponse(
+            id=m.id,
+            title=m.title,
+            sport=m.sport,
+            skill_level=m.skill_level,
+            status=m.status,
+            scheduled_at=m.scheduled_at,
+            duration_minutes=m.duration_minutes,
+            scheduled_date=_format_scheduled_date(m.scheduled_at),
+            scheduled_time=_format_scheduled_time(m.scheduled_at),
+            location_name=m.location_name,
+            location=m.location_name or m.facility_address,
+            facility_address=m.facility_address,
+            latitude=m.latitude,
+            longitude=m.longitude,
+            max_players=m.max_players,
+            current_players=active_counts.get(m.id, 0),
             host=UserSummaryResponse(
-                id=match.host.id,
-                full_name=match.host.full_name,
-                avatar_url=match.host.avatar_url,
-                avg_rating=match.host.avg_rating,
+                id=m.host.id,
+                full_name=m.host.full_name,
+                avatar_url=m.host.avatar_url,
+                avg_rating=m.host.avg_rating,
             ),
-        ))
-
-    paginated.items = items
+        )
+        for m in paginated.items
+    ]
     return paginated
 
-
-# ─── Get My Matches ───────────────────────────────────────────────────────────
 
 async def get_my_matches(
     current_user: User,
     pagination: PaginationParams,
     db: AsyncSession,
 ) -> PaginatedResponse:
-    """
-    Get all matches the current user is participating in (as host or player).
-    Sorted by scheduled_at descending (newest first).
-    """
     query = (
         select(Match)
         .options(selectinload(Match.host))
@@ -490,41 +409,37 @@ async def get_my_matches(
         )
         .order_by(Match.scheduled_at.desc())
     )
-
     paginated = await paginate(db, query, pagination)
-
     match_ids = [m.id for m in paginated.items]
     active_counts = await _count_active_players_for_match_ids(match_ids, db)
 
-    items = []
-    for match in paginated.items:
-        count = active_counts.get(match.id, 0)
-        items.append(MatchSummaryResponse(
-            id=match.id,
-            title=match.title,
-            sport=match.sport,
-            skill_level=match.skill_level,
-            status=match.status,
-            scheduled_at=match.scheduled_at,
-            duration_minutes=match.duration_minutes,
-            scheduled_date=_format_scheduled_date(match.scheduled_at),
-            scheduled_time=_format_scheduled_time(match.scheduled_at),
-            location_name=match.location_name,
-            location=match.location_name or match.facility_address,
-            facility_address=match.facility_address,
-            latitude=match.latitude,
-            longitude=match.longitude,
-            max_players=match.max_players,
-            current_players=count,
+    paginated.items = [
+        MatchSummaryResponse(
+            id=m.id,
+            title=m.title,
+            sport=m.sport,
+            skill_level=m.skill_level,
+            status=m.status,
+            scheduled_at=m.scheduled_at,
+            duration_minutes=m.duration_minutes,
+            scheduled_date=_format_scheduled_date(m.scheduled_at),
+            scheduled_time=_format_scheduled_time(m.scheduled_at),
+            location_name=m.location_name,
+            location=m.location_name or m.facility_address,
+            facility_address=m.facility_address,
+            latitude=m.latitude,
+            longitude=m.longitude,
+            max_players=m.max_players,
+            current_players=active_counts.get(m.id, 0),
             host=UserSummaryResponse(
-                id=match.host.id,
-                full_name=match.host.full_name,
-                avatar_url=match.host.avatar_url,
-                avg_rating=match.host.avg_rating,
+                id=m.host.id,
+                full_name=m.host.full_name,
+                avatar_url=m.host.avatar_url,
+                avg_rating=m.host.avg_rating,
             ),
-        ))
-
-    paginated.items = items
+        )
+        for m in paginated.items
+    ]
     return paginated
 
 
@@ -537,17 +452,11 @@ async def update_match(
     db: AsyncSession,
     background_tasks: BackgroundTasks,
 ) -> MatchDetailResponse:
-    """
-    Update match details. Host only.
-    Only provided (non-None) fields are updated.
-    If facility_address changes, geocoding is re-queued.
-    """
     match = await _get_match_or_404(match_id, db)
 
     if match.host_id != current_user.id:
         raise NotMatchHost()
 
-    # Cannot edit a match that is already ongoing, completed or cancelled
     if match.status in [MatchStatus.ONGOING, MatchStatus.COMPLETED, MatchStatus.CANCELLED]:
         raise bad_request(f"Cannot edit a match with status '{match.status.value}'")
 
@@ -564,7 +473,6 @@ async def update_match(
     if payload.skill_level is not None:
         match.skill_level = payload.skill_level
     if payload.max_players is not None:
-        # New limit cannot be less than current active player count
         active_count = await _count_active_players(match_id, db)
         if payload.max_players < active_count:
             raise bad_request(
@@ -593,7 +501,9 @@ async def update_match(
     await db.refresh(match)
 
     if address_changed and match.latitude is None and match.longitude is None:
-        background_tasks.add_task(geocode_match_address, match.id, match.facility_address)
+        background_tasks.add_task(
+            geocode_match_address, match.id, match.facility_address
+        )
 
     result = await db.execute(
         select(Match).options(selectinload(Match.host)).where(Match.id == match.id)
@@ -610,15 +520,9 @@ async def delete_match(
     current_user: User,
     db: AsyncSession,
 ) -> None:
-    """
-    Permanently delete a match. Host only.
-    Cascade deletes all MatchPlayer, Message, and Review records.
-    """
     match = await _get_match_or_404(match_id, db)
-
     if match.host_id != current_user.id:
         raise NotMatchHost()
-
     await db.delete(match)
     await db.commit()
     logger.info(f"Match deleted: id={match_id} by host={current_user.id}")
@@ -632,25 +536,13 @@ async def join_match(
     db: AsyncSession,
     background_tasks: BackgroundTasks,
 ) -> MessageResponse:
-    """
-    Join an open match.
-
-    Rules:
-    - Match must be OPEN (not FULL, ONGOING, COMPLETED, or CANCELLED)
-    - User must not already be an active participant
-    - Active player count must be below max_players
-    - If joining fills the match → status auto-set to FULL
-    - Notifies the host via background task
-    """
     match = await _get_match_or_404(match_id, db)
 
-    # 1. Check status allows joining
     if match.status not in [MatchStatus.OPEN]:
         if match.status == MatchStatus.FULL:
             raise MatchFull()
         raise MatchNotOpen()
 
-    # 2. Check user not already an active participant
     existing = await db.execute(
         select(MatchPlayer).where(
             and_(
@@ -663,12 +555,10 @@ async def join_match(
     if existing.scalar_one_or_none():
         raise AlreadyJoined()
 
-    # 3. Check capacity
     active_count = await _count_active_players(match_id, db)
     if active_count >= match.max_players:
         raise MatchFull()
 
-    # 4. Add player to match
     player_record = MatchPlayer(
         match_id=match_id,
         user_id=current_user.id,
@@ -677,7 +567,6 @@ async def join_match(
     )
     db.add(player_record)
 
-    # 5. Auto-set to FULL if this player fills the last slot
     new_count = active_count + 1
     if new_count >= match.max_players:
         match.status = MatchStatus.FULL
@@ -685,7 +574,6 @@ async def join_match(
 
     await db.commit()
 
-    # 6. Notify host in background
     background_tasks.add_task(
         send_match_joined_notification,
         match_id,
@@ -704,25 +592,14 @@ async def leave_match(
     current_user: User,
     db: AsyncSession,
 ) -> MessageResponse:
-    """
-    Leave a match.
-
-    Rules:
-    - Host cannot leave — must delete the match instead
-    - Player must be an active participant
-    - If match was FULL, leaving reopens a slot → status → OPEN
-    """
     match = await _get_match_or_404(match_id, db)
 
-    # 1. Host cannot leave
     if match.host_id == current_user.id:
         raise forbidden("As the host, you cannot leave. Delete the match instead.")
 
-    # 2. Cannot leave a match that is COMPLETED or CANCELLED
     if match.status in [MatchStatus.COMPLETED, MatchStatus.CANCELLED]:
         raise bad_request(f"Cannot leave a match with status '{match.status.value}'")
 
-    # 3. Find active player record
     result = await db.execute(
         select(MatchPlayer).where(
             and_(
@@ -736,13 +613,11 @@ async def leave_match(
     if not player_record:
         raise bad_request("You are not an active participant in this match.")
 
-    # 4. Mark as LEFT
     player_record.status = MatchPlayerStatus.LEFT
 
-    # 5. Reopen slot if match was FULL
     if match.status == MatchStatus.FULL:
         match.status = MatchStatus.OPEN
-        logger.info(f"Match {match_id} reopened (player left, slot available)")
+        logger.info(f"Match {match_id} reopened (player left)")
 
     await db.commit()
     logger.info(f"User {current_user.id} left match {match_id}")
@@ -758,30 +633,17 @@ async def remove_player(
     db: AsyncSession,
     background_tasks: BackgroundTasks,
 ) -> MessageResponse:
-    """
-    Remove a player from the match. Host only.
-
-    Rules:
-    - Host cannot remove themselves
-    - Target must be an active participant
-    - If match was FULL, removal reopens a slot → status → OPEN
-    - Removed player receives a PLAYER_REMOVED notification
-    """
     match = await _get_match_or_404(match_id, db)
 
-    # 1. Must be host
     if match.host_id != current_user.id:
         raise NotMatchHost()
 
-    # 2. Cannot remove self
     if target_user_id == current_user.id:
         raise bad_request("You cannot remove yourself. Delete the match instead.")
 
-    # 3. Cannot remove from completed/cancelled match
     if match.status in [MatchStatus.COMPLETED, MatchStatus.CANCELLED]:
         raise bad_request(f"Cannot remove players from a '{match.status.value}' match.")
 
-    # 4. Find target player record
     result = await db.execute(
         select(MatchPlayer).where(
             and_(
@@ -795,28 +657,27 @@ async def remove_player(
     if not player_record:
         raise bad_request("This user is not an active participant in the match.")
 
-    # 5. Mark as REMOVED
     player_record.status = MatchPlayerStatus.REMOVED
 
-    # 6. Reopen slot if match was FULL
     if match.status == MatchStatus.FULL:
         match.status = MatchStatus.OPEN
-        logger.info(f"Match {match_id} reopened (player removed, slot available)")
+        logger.info(f"Match {match_id} reopened (player removed)")
 
     await db.commit()
 
-    # 7. Notify the removed player in background
     background_tasks.add_task(
         send_player_removed_notification,
         match_id,
         target_user_id,
     )
 
-    logger.info(f"Host {current_user.id} removed player {target_user_id} from match {match_id}")
+    logger.info(
+        f"Host {current_user.id} removed player {target_user_id} from match {match_id}"
+    )
     return MessageResponse(message="Player has been removed from the match.")
 
 
-# ─── Update Match Status (Start Game / Complete / Cancel) ─────────────────────
+# ─── Update Match Status ──────────────────────────────────────────────────────
 
 async def update_match_status(
     match_id: uuid.UUID,
@@ -825,62 +686,43 @@ async def update_match_status(
     db: AsyncSession,
     background_tasks: BackgroundTasks,
 ) -> MatchDetailResponse:
-    """
-    Update match status. Host only.
-
-    Valid transitions:
-      OPEN | FULL  → ONGOING    (Start Game — slots NOT required to be full)
-      ONGOING      → COMPLETED
-      OPEN | FULL  → CANCELLED
-
-    Key rule: Host can start the game at ANY time regardless of how many
-    slots are filled. The player limit is a maximum capacity, not a
-    start requirement.
-    """
     match = await _get_match_or_404(match_id, db)
 
-    # 1. Must be host
     if match.host_id != current_user.id:
         raise NotMatchHost()
 
     new_status = payload.status
     allowed = VALID_TRANSITIONS.get(match.status, [])
 
-    # 2. Validate the transition is allowed
     if new_status not in allowed:
         raise bad_request(
-            f"Cannot transition match from '{match.status.value}' to '{new_status.value}'. "
-            f"Allowed transitions: {[s.value for s in allowed] or 'none'}"
+            f"Cannot transition match from '{match.status.value}' to "
+            f"'{new_status.value}'. "
+            f"Allowed: {[s.value for s in allowed] or 'none'}"
         )
 
-    # 3. Apply new status
     match.status = new_status
     await db.commit()
     await db.refresh(match)
 
-    # 4. Trigger background tasks based on new status
     if new_status == MatchStatus.ONGOING:
-        # Notify all active players that the match has started
         players_result = await db.execute(
             select(MatchPlayer.user_id).where(
                 and_(
                     MatchPlayer.match_id == match_id,
                     MatchPlayer.status == MatchPlayerStatus.ACTIVE,
-                    MatchPlayer.user_id != current_user.id,  # Skip host
+                    MatchPlayer.user_id != current_user.id,
                 )
             )
         )
         player_ids = [row[0] for row in players_result.fetchall()]
         if player_ids:
             background_tasks.add_task(
-                send_match_started_notification,
-                match_id,
-                player_ids,
+                send_match_started_notification, match_id, player_ids
             )
         logger.info(f"Match {match_id} STARTED by host {current_user.id}")
 
     elif new_status == MatchStatus.COMPLETED:
-        # Increment games_played for all active participants
         players_result = await db.execute(
             select(MatchPlayer.user_id).where(
                 and_(
@@ -897,172 +739,12 @@ async def update_match_status(
     elif new_status == MatchStatus.CANCELLED:
         logger.info(f"Match {match_id} CANCELLED by host {current_user.id}")
 
-    # 5. Reload with host relationship and return
     result = await db.execute(
         select(Match).options(selectinload(Match.host)).where(Match.id == match_id)
     )
     match = result.scalar_one()
     current_players = await _count_active_players(match_id, db)
     return await _build_match_detail(match, current_players, db)
-
-
-# ─── Get Match Players ────────────────────────────────────────────────────────
-
-# ─── Get Nearby Matches (Phase 3) ─────────────────────────────────────────────
-
-async def get_nearby_matches(
-    lat: float,
-    lng: float,
-    radius_km: int,
-    sport: SportType | None,
-    skill_level: SkillLevel | None,
-    date_from: str | None,
-    date_to: str | None,
-    pagination: PaginationParams,
-    db: AsyncSession,
-) -> PaginatedResponse:
-    """
-    Discover nearby matches using the Haversine formula.
-
-    Haversine formula calculates the great-circle distance between two
-    points on Earth given their latitude/longitude coordinates.
-
-    Formula:
-        a = sin²(Δlat/2) + cos(lat1) * cos(lat2) * sin²(Δlng/2)
-        distance_km = 2 * R * asin(√a)   where R = 6371 km
-
-    Filters applied (all optional, with documented defaults):
-        - sport:       defaults to the sport the user is browsing (passed by client)
-        - radius_km:   default 20 km
-        - skill_level: default Any (no filter)
-        - date_from:   default None (all upcoming matches)
-        - date_to:     default None (no upper date limit)
-
-    Results:
-        - Only OPEN and FULL matches
-        - Only future matches (scheduled_at >= now)
-        - Sorted by distance ASC (closest first)
-        - Matches with no coordinates yet (geocoding pending) are excluded
-    """
-    now = datetime.now(timezone.utc)
-
-    # ── Build base filter conditions ──────────────────────────────────────────
-    conditions = [
-        Match.status.in_([MatchStatus.OPEN, MatchStatus.FULL]),
-        Match.scheduled_at >= now,
-        Match.latitude.isnot(None),
-        Match.longitude.isnot(None),
-    ]
-
-    if sport:
-        conditions.append(Match.sport == sport)
-
-    if skill_level:
-        conditions.append(Match.skill_level == skill_level)
-
-    if date_from:
-        try:
-            dt_from = _parse_iso_datetime(date_from)
-            conditions.append(Match.scheduled_at >= dt_from)
-        except ValueError:
-            raise bad_request("Invalid date_from format. Use ISO 8601 (e.g. 2025-06-01T00:00:00).")
-
-    if date_to:
-        try:
-            dt_to = _parse_iso_datetime(date_to)
-            conditions.append(Match.scheduled_at <= dt_to)
-        except ValueError:
-            raise bad_request("Invalid date_to format. Use ISO 8601 (e.g. 2025-06-30T23:59:59).")
-
-    # Distance filtering is done in Python using Haversine after the
-    # bounding-box pre-filter. No PostGIS extension required.
-
-        # ── Bounding box pre-filter (fast index scan before trig) ───────────────
-    from app.utils.geocoding import build_bounding_box, haversine_distance_km
-    import math
-    bbox = build_bounding_box(lat, lng, radius_km)
-
-    bbox_conditions = conditions + [
-        Match.latitude.between(bbox.lat_min, bbox.lat_max),
-        Match.longitude.between(bbox.lng_min, bbox.lng_max),
-    ]
-
-    # ── Fetch candidates within bounding box ─────────────────────────────────
-    candidate_query = (
-        select(Match)
-        .options(selectinload(Match.host))
-        .where(and_(*bbox_conditions))
-        .order_by(Match.scheduled_at.asc())
-    )
-
-    result = await db.execute(candidate_query)
-    candidates = result.scalars().all()
-
-    # ── Apply exact Haversine filter and compute distances ────────────────────
-    matches_with_distance: list[tuple[Match, float]] = []
-
-    for match in candidates:
-        if match.latitude is None or match.longitude is None:
-            continue
-
-        # Exact Haversine distance using shared utility function
-        distance_km = haversine_distance_km(lat, lng, match.latitude, match.longitude)
-
-        if distance_km <= radius_km:
-            matches_with_distance.append((match, round(distance_km, 2)))
-
-    # ── Sort by distance ascending ────────────────────────────────────────────
-    matches_with_distance.sort(key=lambda x: x[1])
-
-    # ── Apply pagination manually ─────────────────────────────────────────────
-    total = len(matches_with_distance)
-    start = pagination.skip
-    end = start + pagination.limit
-    page_items = matches_with_distance[start:end]
-
-    # ── Build response items with player counts ───────────────────────────────
-    page_match_ids = [match.id for match, _ in page_items]
-    active_counts = await _count_active_players_for_match_ids(page_match_ids, db)
-
-    items = []
-    for match, distance_km in page_items:
-        count = active_counts.get(match.id, 0)
-        items.append(
-            MatchSummaryResponse(
-                id=match.id,
-                title=match.title,
-                sport=match.sport,
-                skill_level=match.skill_level,
-                status=match.status,
-                scheduled_at=match.scheduled_at,
-                duration_minutes=match.duration_minutes,
-                scheduled_date=_format_scheduled_date(match.scheduled_at),
-                scheduled_time=_format_scheduled_time(match.scheduled_at),
-                location_name=match.location_name,
-                location=match.location_name or match.facility_address,
-                facility_address=match.facility_address,
-                latitude=match.latitude,
-                longitude=match.longitude,
-                max_players=match.max_players,
-                current_players=count,
-                distance_km=distance_km,
-                host=UserSummaryResponse(
-                    id=match.host.id,
-                    full_name=match.host.full_name,
-                    avatar_url=match.host.avatar_url,
-                    avg_rating=match.host.avg_rating,
-                ),
-            )
-        )
-
-    return PaginatedResponse(
-        items=items,
-        total=total,
-        page=pagination.page,
-        limit=pagination.limit,
-        has_next=(end < total),
-        has_prev=(pagination.page > 1),
-    )
 
 
 # ─── Invite Player ────────────────────────────────────────────────────────────
@@ -1072,24 +754,12 @@ async def invite_player(
     invited_user_id: uuid.UUID,
     current_user: User,
     db: AsyncSession,
+    background_tasks: BackgroundTasks,
 ) -> MessageResponse:
-    """
-    Invite a registered user to join a match. Host only.
-
-    Rules:
-    - Only the host can invite players
-    - Match must be OPEN or FULL (cannot invite to ONGOING/COMPLETED/CANCELLED)
-    - Cannot invite yourself (host is already in the match)
-    - Cannot invite someone already in the match
-    - Cannot invite someone who was removed from the match
-    - Sends a MATCH_INVITED notification to the invited user
-    """
-    from app.models.user import User as UserModel
+    """Invite a user to join the match. Host only."""
     from app.models.notification import Notification
-    from app.models.enums import NotificationType, MatchPlayerStatus
     from app.websockets.connection_manager import ws_manager
 
-    # 1. Fetch and validate match
     match = await _get_match_or_404(match_id, db)
 
     if match.host_id != current_user.id:
@@ -1100,19 +770,16 @@ async def invite_player(
             f"Cannot invite players to a '{match.status.value}' match."
         )
 
-    # 2. Cannot invite yourself
     if invited_user_id == current_user.id:
         raise bad_request("You are already in this match as the host.")
 
-    # 3. Verify the invited user exists
     invited_result = await db.execute(
-        select(UserModel).where(UserModel.id == invited_user_id)
+        select(User).where(User.id == invited_user_id)
     )
     invited_user = invited_result.scalar_one_or_none()
     if not invited_user:
         raise UserNotFound()
 
-    # 4. Check if user is already an active participant
     existing_mp = await db.execute(
         select(MatchPlayer).where(
             and_(
@@ -1127,19 +794,21 @@ async def invite_player(
             raise conflict(f"{invited_user.full_name} is already in this match.")
         elif existing.status == MatchPlayerStatus.REMOVED:
             raise bad_request(
-                f"{invited_user.full_name} was removed from this match and cannot be re-invited."
+                f"{invited_user.full_name} was removed from this match "
+                "and cannot be re-invited."
             )
 
-    # 5. Build notification payload
     notification_payload = {
-        "match_id":    str(match_id),
-        "match_title": match.title,
-        "host_name":   current_user.full_name,
-        "sport":       match.sport.value,
+        "match_id":     str(match_id),
+        "match_title":  match.title,
+        "host_id":      str(current_user.id),
+        "host_name":    current_user.full_name,
+        "host_avatar":  current_user.avatar_url,
+        "sport":        match.sport.value,
+        "location":     match.location_name or match.facility_address,
         "scheduled_at": match.scheduled_at.isoformat(),
     }
 
-    # 6. Create DB notification record
     notification = Notification(
         user_id=invited_user_id,
         type=NotificationType.MATCH_INVITED,
@@ -1148,21 +817,279 @@ async def invite_player(
     db.add(notification)
     await db.commit()
 
-    # 7. Push via WebSocket if user is online (best-effort, never raises)
     try:
         await ws_manager.send_to_user(str(invited_user_id), {
-            "type":              "notification",
+            "type": "notification",
             "notification_type": NotificationType.MATCH_INVITED.value,
-            "payload":           notification_payload,
+            "payload": notification_payload,
         })
     except Exception as e:
-        logger.warning(f"Could not push invite notification to user {invited_user_id}: {e}")
+        logger.warning(
+            f"Could not push invite notification to user {invited_user_id}: {e}"
+        )
 
     logger.info(
-        f"Host {current_user.id} invited user {invited_user_id} "
-        f"to match {match_id}"
+        f"Host {current_user.id} invited user {invited_user_id} to match {match_id}"
+    )
+    return MessageResponse(message=f"Invitation sent to {invited_user.full_name}.")
+
+
+# ─── Accept Invite ────────────────────────────────────────────────────────────
+
+async def accept_invite(
+    match_id: uuid.UUID,
+    current_user: User,
+    db: AsyncSession,
+    background_tasks: BackgroundTasks,
+) -> MessageResponse:
+    """
+    Accept a match invitation.
+    Joins the match and notifies the host.
+    """
+    from app.models.notification import Notification
+    from app.websockets.connection_manager import ws_manager
+
+    match = await _get_match_or_404(match_id, db)
+
+    # Match must still be joinable
+    if match.status not in [MatchStatus.OPEN, MatchStatus.FULL]:
+        raise bad_request(
+            f"Cannot accept invite — match is '{match.status.value}'."
+        )
+
+    if match.status == MatchStatus.FULL:
+        raise MatchFull()
+
+    # Check user not already in match
+    existing = await db.execute(
+        select(MatchPlayer).where(
+            and_(
+                MatchPlayer.match_id == match_id,
+                MatchPlayer.user_id == current_user.id,
+                MatchPlayer.status == MatchPlayerStatus.ACTIVE,
+            )
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise AlreadyJoined()
+
+    # Check capacity
+    active_count = await _count_active_players(match_id, db)
+    if active_count >= match.max_players:
+        raise MatchFull()
+
+    # Add player to match
+    player_record = MatchPlayer(
+        match_id=match_id,
+        user_id=current_user.id,
+        role=MatchPlayerRole.PLAYER,
+        status=MatchPlayerStatus.ACTIVE,
+    )
+    db.add(player_record)
+
+    # Auto-set to FULL if last slot filled
+    new_count = active_count + 1
+    if new_count >= match.max_players:
+        match.status = MatchStatus.FULL
+        logger.info(f"Match {match_id} is now FULL ({new_count}/{match.max_players})")
+
+    # Notify host about acceptance
+    notification_payload = {
+        "match_id":    str(match_id),
+        "match_title": match.title,
+        "user_id":     str(current_user.id),
+        "user_name":   current_user.full_name,
+        "user_avatar": current_user.avatar_url,
+    }
+
+    notification = Notification(
+        user_id=match.host_id,
+        type=NotificationType.MATCH_INVITE_ACCEPTED,
+        payload=notification_payload,
+    )
+    db.add(notification)
+    await db.commit()
+
+    # Push WebSocket notification to host
+    try:
+        await ws_manager.send_to_user(str(match.host_id), {
+            "type": "notification",
+            "notification_type": NotificationType.MATCH_INVITE_ACCEPTED.value,
+            "payload": notification_payload,
+        })
+    except Exception as e:
+        logger.warning(
+            f"Could not push accept notification to host {match.host_id}: {e}"
+        )
+
+    logger.info(
+        f"User {current_user.id} accepted invite to match {match_id}"
+    )
+    return MessageResponse(
+        message="You have accepted the invitation and joined the match."
     )
 
-    return MessageResponse(
-        message=f"Invitation sent to {invited_user.full_name}."
+
+# ─── Decline Invite ───────────────────────────────────────────────────────────
+
+async def decline_invite(
+    match_id: uuid.UUID,
+    current_user: User,
+    db: AsyncSession,
+    background_tasks: BackgroundTasks,
+) -> MessageResponse:
+    """
+    Decline a match invitation.
+    Notifies the host that the invite was declined.
+    """
+    from app.models.notification import Notification
+    from app.websockets.connection_manager import ws_manager
+
+    match = await _get_match_or_404(match_id, db)
+
+    # Notify host about decline
+    notification_payload = {
+        "match_id":    str(match_id),
+        "match_title": match.title,
+        "user_id":     str(current_user.id),
+        "user_name":   current_user.full_name,
+        "user_avatar": current_user.avatar_url,
+    }
+
+    notification = Notification(
+        user_id=match.host_id,
+        type=NotificationType.MATCH_INVITE_DECLINED,
+        payload=notification_payload,
     )
+    db.add(notification)
+    await db.commit()
+
+    # Push WebSocket notification to host
+    try:
+        await ws_manager.send_to_user(str(match.host_id), {
+            "type": "notification",
+            "notification_type": NotificationType.MATCH_INVITE_DECLINED.value,
+            "payload": notification_payload,
+        })
+    except Exception as e:
+        logger.warning(
+            f"Could not push decline notification to host {match.host_id}: {e}"
+        )
+
+    logger.info(
+        f"User {current_user.id} declined invite to match {match_id}"
+    )
+    return MessageResponse(message="You have declined the invitation.")
+
+
+# ─── Get Nearby Matches ───────────────────────────────────────────────────────
+
+async def get_nearby_matches(
+    lat: float,
+    lng: float,
+    radius_km: int,
+    sport: SportType | None,
+    skill_level: SkillLevel | None,
+    date_from: str | None,
+    date_to: str | None,
+    pagination: PaginationParams,
+    db: AsyncSession,
+) -> PaginatedResponse:
+    now = datetime.now(timezone.utc)
+
+    conditions = [
+        Match.status.in_([MatchStatus.OPEN, MatchStatus.FULL]),
+        Match.scheduled_at >= now,
+        Match.latitude.isnot(None),
+        Match.longitude.isnot(None),
+    ]
+
+    if sport:
+        conditions.append(Match.sport == sport)
+    if skill_level:
+        conditions.append(Match.skill_level == skill_level)
+    if date_from:
+        try:
+            conditions.append(Match.scheduled_at >= _parse_iso_datetime(date_from))
+        except ValueError:
+            raise bad_request("Invalid date_from format.")
+    if date_to:
+        try:
+            conditions.append(Match.scheduled_at <= _parse_iso_datetime(date_to))
+        except ValueError:
+            raise bad_request("Invalid date_to format.")
+
+    from app.utils.geocoding import build_bounding_box, haversine_distance_km
+    bbox = build_bounding_box(lat, lng, radius_km)
+
+    bbox_conditions = conditions + [
+        Match.latitude.between(bbox.lat_min, bbox.lat_max),
+        Match.longitude.between(bbox.lng_min, bbox.lng_max),
+    ]
+
+    candidate_query = (
+        select(Match)
+        .options(selectinload(Match.host))
+        .where(and_(*bbox_conditions))
+        .order_by(Match.scheduled_at.asc())
+    )
+
+    result = await db.execute(candidate_query)
+    candidates = result.scalars().all()
+
+    matches_with_distance: list[tuple[Match, float]] = []
+    for match in candidates:
+        if match.latitude is None or match.longitude is None:
+            continue
+        distance_km = haversine_distance_km(lat, lng, match.latitude, match.longitude)
+        if distance_km <= radius_km:
+            matches_with_distance.append((match, round(distance_km, 2)))
+
+    matches_with_distance.sort(key=lambda x: x[1])
+
+    total = len(matches_with_distance)
+    start = pagination.skip
+    end = start + pagination.limit
+    page_items = matches_with_distance[start:end]
+
+    page_match_ids = [m.id for m, _ in page_items]
+    active_counts = await _count_active_players_for_match_ids(page_match_ids, db)
+
+    items = [
+        MatchSummaryResponse(
+            id=m.id,
+            title=m.title,
+            sport=m.sport,
+            skill_level=m.skill_level,
+            status=m.status,
+            scheduled_at=m.scheduled_at,
+            duration_minutes=m.duration_minutes,
+            scheduled_date=_format_scheduled_date(m.scheduled_at),
+            scheduled_time=_format_scheduled_time(m.scheduled_at),
+            location_name=m.location_name,
+            location=m.location_name or m.facility_address,
+            facility_address=m.facility_address,
+            latitude=m.latitude,
+            longitude=m.longitude,
+            max_players=m.max_players,
+            current_players=active_counts.get(m.id, 0),
+            distance_km=d,
+            host=UserSummaryResponse(
+                id=m.host.id,
+                full_name=m.host.full_name,
+                avatar_url=m.host.avatar_url,
+                avg_rating=m.host.avg_rating,
+            ),
+        )
+        for m, d in page_items
+    ]
+
+    return PaginatedResponse(
+        items=items,
+        total=total,
+        page=pagination.page,
+        limit=pagination.limit,
+        has_next=(end < total),
+        has_prev=(pagination.page > 1),
+    )
+

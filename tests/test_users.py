@@ -83,7 +83,7 @@ async def test_update_profile_name(client: AsyncClient, db_session: AsyncSession
     user, token = await create_active_user(db_session, "update@example.com", "Old Name")
     response = await client.put(
         "/api/v1/users/me",
-        json={"full_name": "New Name"},
+        data={"full_name": "New Name"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 200
@@ -94,11 +94,8 @@ async def test_update_profile_sports(client: AsyncClient, db_session: AsyncSessi
     user, token = await create_active_user(db_session, "sports@example.com", "Sports User")
     response = await client.put(
         "/api/v1/users/me",
-        json={
-            "sports": [
-                {"sport": "Basketball", "skill_level": "Intermediate"},
-                {"sport": "Football", "skill_level": "Beginner"},
-            ]
+        data={
+            "sports": '[{"sport": "BASKETBALL", "skill_level": "INTERMEDIATE"}, {"sport": "FOOTBALL", "skill_level": "BEGINNER"}]'
         },
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -106,21 +103,20 @@ async def test_update_profile_sports(client: AsyncClient, db_session: AsyncSessi
     sports = response.json()["sports"]
     assert len(sports) == 2
     sport_names = [s["sport"] for s in sports]
-    assert "Basketball" in sport_names
-    assert "Football" in sport_names
+    assert "BASKETBALL" in sport_names
+    assert "FOOTBALL" in sport_names
 
 
-async def test_update_bio_and_location(client: AsyncClient, db_session: AsyncSession):
+async def test_update_bio(client: AsyncClient, db_session: AsyncSession):
     user, token = await create_active_user(db_session, "bio@example.com", "Bio User")
     response = await client.put(
         "/api/v1/users/me",
-        json={"bio": "Love playing sports!", "location": "Copenhagen"},
+        data={"bio": "Love playing sports!"},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 200
     data = response.json()
     assert data["bio"] == "Love playing sports!"
-    assert data["location"] == "Copenhagen"
 
 
 async def test_update_profile_with_avatar_in_single_request(client: AsyncClient, db_session: AsyncSession):
@@ -130,7 +126,6 @@ async def test_update_profile_with_avatar_in_single_request(client: AsyncClient,
         data={
             "full_name": "Updated Avatar User",
             "bio": "Ready to play",
-            "location": "Peshawar",
         },
         files={"avatar": ("avatar.png", BytesIO(b"\x89PNG\r\n\x1a\nfakepng"), "image/png")},
         headers={"Authorization": f"Bearer {token}"},
@@ -139,7 +134,6 @@ async def test_update_profile_with_avatar_in_single_request(client: AsyncClient,
     data = response.json()
     assert data["full_name"] == "Updated Avatar User"
     assert data["bio"] == "Ready to play"
-    assert data["location"] == "Peshawar"
     assert data["avatar_url"] is not None
     assert "/uploads/avatars/" in data["avatar_url"]
 
@@ -234,3 +228,34 @@ async def test_unfollow_not_following_should_fail(client: AsyncClient, db_sessio
         headers={"Authorization": f"Bearer {token}"},
     )
     assert response.status_code == 400
+
+
+async def test_update_profile_rejects_json_format(client: AsyncClient, db_session: AsyncSession):
+    user, token = await create_active_user(db_session, "json@example.com", "JSON User")
+    response = await client.put(
+        "/api/v1/users/me",
+        json={"full_name": "New Name"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 400
+    assert "Unsupported content type" in response.json()["detail"]
+
+
+async def test_update_profile_field_validation(client: AsyncClient, db_session: AsyncSession):
+    user, token = await create_active_user(db_session, "validation@example.com", "Validation User")
+    
+    # Test full_name too long
+    response = await client.put(
+        "/api/v1/users/me",
+        data={"full_name": "A" * 101},  # 101 chars, exceeds limit
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 422  # Validation error
+    
+    # Test bio too long
+    response = await client.put(
+        "/api/v1/users/me",
+        data={"bio": "A" * 501},  # 501 chars, exceeds limit
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 422  # Validation error
