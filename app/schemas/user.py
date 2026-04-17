@@ -1,11 +1,12 @@
 import uuid
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from app.models.enums import SkillLevel, SportType, UserStatus
 from app.schemas.review import UserSummaryResponse, ReviewResponse
 
 
 class UserSportResponse(BaseModel):
+    """Sport with skill level — matches UI badge style."""
     sport: SportType
     skill_level: SkillLevel
     model_config = {"from_attributes": True}
@@ -19,17 +20,25 @@ class UserSportRequest(BaseModel):
 # ─── Nested Response Models ───────────────────────────────────────────────────
 
 class UserStatsResponse(BaseModel):
+    """
+    Stats shown in the profile header:
+    Followers | Following | Rating
+    """
     followers: int = 0
     following: int = 0
+    rating: float = 0.0
     matches: int | None = None
-    rating: float | None = None
 
 
 class UserActionsResponse(BaseModel):
+    """
+    Controls which buttons are shown in the UI:
+    Follow | Message | Rate Player
+    """
     can_follow: bool
     can_message: bool
     can_rate: bool
-    is_following: bool | None = None
+    is_following: bool = False
     is_own_profile: bool
 
 
@@ -49,11 +58,13 @@ class UserCtaResponse(BaseModel):
     share_profile: bool = True
 
 
-# ─── Own Profile ──────────────────────────────────────────────────────────────
+# ─── Own Profile (Private Profile in UI) ─────────────────────────────────────
 
 class UserResponse(BaseModel):
     """
-    Full profile returned to the authenticated user themselves.
+    Full profile returned to the authenticated user (Private Profile screen).
+    Shows: avatar, name, location, bio, stats, sports, reviews
+    No Follow/Message/Rate buttons
     """
     id: uuid.UUID
     full_name: str
@@ -79,7 +90,9 @@ class UserResponse(BaseModel):
 
 class UserProfileResponse(BaseModel):
     """
-    Public profile returned when viewing another user's profile.
+    Public profile returned when viewing another user (Public Profile screen).
+    Shows: avatar, name, location, bio, Follow/Message/Rate buttons,
+           stats, sports, reviews
     """
     id: uuid.UUID
     full_name: str
@@ -99,7 +112,7 @@ class UserProfileResponse(BaseModel):
 
 class UserListItemResponse(BaseModel):
     """
-    Public user card used in frontend browse/search user lists.
+    Public user card used in browse/search lists.
     """
     id: uuid.UUID
     full_name: str
@@ -118,7 +131,6 @@ class UserListItemResponse(BaseModel):
 class UpdateProfileResponse(BaseModel):
     """
     Focused response for profile update operations.
-    Returns only the essential updated profile data.
     """
     id: uuid.UUID
     full_name: str
@@ -133,21 +145,13 @@ class UpdateProfileResponse(BaseModel):
 
 class UpdateProfileRequest(BaseModel):
     """
-    Simplified profile update request aligned with UI.
-    Accepts only editable fields from the frontend:
-    - Name
-    - Bio
-    - Sport Type and Skill Level
-    - Profile Photo (via multipart/form-data)
-    
-    Usage: Use multipart/form-data with optional fields:
-    - full_name: string
-    - bio: string
+    Profile update request — only editable fields.
+    Use multipart/form-data with optional fields:
+    - full_name: string (max 100 chars)
+    - bio: string (max 500 chars)
     - sports: JSON array of {sport, skill_level}
     - avatar: file (image)
     """
-    full_name: str | None = None
-    bio: str | None = None
+    full_name: str | None = Field(None, max_length=100)
+    bio: str | None = Field(None, max_length=500)
     sports: list[UserSportRequest] | None = None
-
-    

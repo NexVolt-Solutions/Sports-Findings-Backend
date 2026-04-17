@@ -12,7 +12,7 @@ from app.schemas.common import MessageResponse, PaginatedResponse
 from app.schemas.review import CreateReviewRequest, ReviewResponse
 from app.schemas.user import (
     UpdateProfileRequest,
-    UpdateProfileResponse,  # Added focused response
+    UpdateProfileResponse,
     UserListItemResponse,
     UserProfileResponse,
     UserResponse,
@@ -55,45 +55,33 @@ def _read_optional_form_value(form, key: str) -> str | None:
 async def _parse_update_profile_request(
     request: Request,
 ) -> tuple[UpdateProfileRequest, UploadFile | None]:
-    """
-    Parse the update profile request from multipart/form-data.
-    
-    Expected form fields:
-    - full_name: optional string
-    - bio: optional string
-    - sports: optional JSON array [{sport: string, skill_level: string}, ...]
-    - avatar: optional file (image)
-    """
     content_type = request.headers.get("content-type", "").lower()
 
-    if "multipart/form-data" in content_type:
-        form = await request.form()
-        sports_raw = _read_optional_form_value(form, "sports")
-        sports = None
-        if sports_raw is not None:
-            try:
-                sports = json.loads(sports_raw) if sports_raw else []
-            except json.JSONDecodeError as exc:
-                raise bad_request(
-                    "Invalid sports payload. Expected JSON array."
-                ) from exc
+    if "multipart/form-data" not in content_type:
+        raise bad_request("Unsupported content type. Use multipart/form-data.")
 
-        payload = UpdateProfileRequest.model_validate(
-            {
-                "full_name": _read_optional_form_value(form, "full_name"),
-                "bio": _read_optional_form_value(form, "bio"),
-                "sports": sports,
-            }
-        )
+    form = await request.form()
+    sports_raw = _read_optional_form_value(form, "sports")
+    sports = None
 
-        avatar = form.get("avatar")
-        if isinstance(avatar, (UploadFile, StarletteUploadFile)):
-            return payload, avatar
-        return payload, None
+    if sports_raw is not None:
+        try:
+            sports = json.loads(sports_raw) if sports_raw else []
+        except json.JSONDecodeError as exc:
+            raise bad_request("Invalid sports payload. Expected JSON array.") from exc
 
-    raise bad_request(
-        "Unsupported content type. Use multipart/form-data."
+    payload = UpdateProfileRequest.model_validate(
+        {
+            "full_name": _read_optional_form_value(form, "full_name"),
+            "bio": _read_optional_form_value(form, "bio"),
+            "sports": sports,
+        }
     )
+
+    avatar = form.get("avatar")
+    if isinstance(avatar, (UploadFile, StarletteUploadFile)):
+        return payload, avatar
+    return payload, None
 
 
 @router.put("/me", response_model=UpdateProfileResponse)
@@ -102,32 +90,7 @@ async def update_my_profile(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Update the authenticated user's profile.
-    
-    **Content-Type:** multipart/form-data
-    
-    **Form Fields:**
-    - full_name (optional): User's display name
-    - bio (optional): User's bio/description
-    - sports (optional): JSON array of sports with skill levels
-      Example: [{"sport": "BASKETBALL", "skill_level": "INTERMEDIATE"}, ...]
-    - avatar (optional): Profile photo image file
-    
-    **Response:** Returns focused profile data with only essential fields
-    - id, full_name, bio, avatar_url, sports, updated_at
-    
-    **Example Request:**
-    ```
-    POST /users/me
-    Content-Type: multipart/form-data
-    
-    full_name: "John Doe"
-    bio: "Basketball enthusiast"
-    sports: [{"sport": "BASKETBALL", "skill_level": "INTERMEDIATE"}]
-    avatar: <image file>
-    ```
-    """
+    """Update the authenticated user's profile using multipart/form-data."""
     payload, avatar_file = await _parse_update_profile_request(request)
     return await user_service.update_profile(current_user, payload, db, avatar_file)
 
@@ -142,11 +105,7 @@ async def get_user_profile(
     return await user_service.get_user_profile(user_id, current_user, db)
 
 
-@router.post(
-    "/{user_id}/reviews",
-    response_model=ReviewResponse,
-    status_code=201,
-)
+@router.post("/{user_id}/reviews", response_model=ReviewResponse, status_code=201)
 async def create_review(
     user_id: uuid.UUID,
     payload: CreateReviewRequest,
@@ -161,11 +120,7 @@ async def create_review(
     )
 
 
-@router.post(
-    "/{user_id}/follow",
-    response_model=MessageResponse,
-    status_code=201,
-)
+@router.post("/{user_id}/follow", response_model=MessageResponse, status_code=201)
 async def follow_user(
     user_id: uuid.UUID,
     current_user: User = Depends(get_current_active_user),
@@ -187,10 +142,7 @@ async def unfollow_user(
     return MessageResponse(message="User unfollowed successfully.")
 
 
-@router.get(
-    "/{user_id}/followers",
-    response_model=PaginatedResponse[UserListItemResponse],
-)
+@router.get("/{user_id}/followers", response_model=PaginatedResponse[UserListItemResponse])
 async def get_followers(
     user_id: uuid.UUID,
     pagination: PaginationParams = Depends(),
@@ -201,10 +153,7 @@ async def get_followers(
     return await user_service.get_followers(user_id, pagination, db)
 
 
-@router.get(
-    "/{user_id}/following",
-    response_model=PaginatedResponse[UserListItemResponse],
-)
+@router.get("/{user_id}/following", response_model=PaginatedResponse[UserListItemResponse])
 async def get_following(
     user_id: uuid.UUID,
     pagination: PaginationParams = Depends(),
@@ -213,3 +162,4 @@ async def get_following(
 ):
     """Get paginated list of users this user follows."""
     return await user_service.get_following(user_id, pagination, db)
+

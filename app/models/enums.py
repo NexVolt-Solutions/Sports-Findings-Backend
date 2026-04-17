@@ -44,6 +44,8 @@ class MatchPlayerStatus(str, enum.Enum):
 class NotificationType(str, enum.Enum):
     MATCH_JOINED = "match_joined"
     MATCH_INVITED = "match_invited"
+    MATCH_INVITE_ACCEPTED = "match_invite_accepted"
+    MATCH_INVITE_DECLINED = "match_invite_declined"
     MATCH_STATUS_CHANGED = "match_status_changed"
     NEW_FOLLOWER = "new_follower"
     NEW_REVIEW = "new_review"
@@ -54,3 +56,5 @@ class NotificationType(str, enum.Enum):
 class SupportRequestStatus(str, enum.Enum):
     OPEN = "Open"
     RESOLVED = "Resolved"
+
+    

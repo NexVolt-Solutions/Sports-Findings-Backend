@@ -16,7 +16,7 @@ from app.schemas.user import (
     UserListItemResponse,
     UserSportResponse,
     UpdateProfileRequest,
-    UpdateProfileResponse,  # Added focused response
+    UpdateProfileResponse,
     UserStatsResponse,
     UserActionsResponse,
     UserSettingsResponse,
@@ -38,8 +38,8 @@ async def list_users(
     search: str | None = None,
 ) -> PaginatedResponse:
     """
-    Return a paginated list of public user cards for the frontend.
-    Excludes the authenticated user, admin accounts, and non-active accounts.
+    Return paginated list of public user cards.
+    Excludes current user, admins, and non-active accounts.
     """
     query = (
         select(User)
@@ -79,7 +79,7 @@ async def list_users(
             avatar_url=user.avatar_url,
             avg_rating=user.avg_rating,
             total_games_played=user.total_games_played,
-            sports=[UserSportResponse.model_validate(sport) for sport in user.sports],
+            sports=[UserSportResponse.model_validate(s) for s in user.sports],
             is_following=user.id in followed_ids,
         )
         for user in paginated.items
@@ -88,7 +88,10 @@ async def list_users(
 
 
 async def get_my_profile(user: User, db: AsyncSession) -> UserResponse:
-    """Return the authenticated user's own full profile."""
+    """
+    Return the authenticated user's own full profile.
+    Maps to Private Profile screen in UI.
+    """
     result = await db.execute(
         select(User)
         .options(selectinload(User.sports))
@@ -96,28 +99,26 @@ async def get_my_profile(user: User, db: AsyncSession) -> UserResponse:
     )
     user_with_sports = result.scalar_one()
 
-    # Count followers
+    # ─── Stats ────────────────────────────────────────────────
     followers_result = await db.execute(
         select(func.count()).where(Follow.following_id == user.id)
     )
     followers_count = followers_result.scalar_one()
 
-    # Count following
     following_result = await db.execute(
         select(func.count()).where(Follow.follower_id == user.id)
     )
     following_count = following_result.scalar_one()
 
-    # Count reviews
+    # ─── Reviews ──────────────────────────────────────────────
     total_reviews_result = await db.execute(
         select(func.count()).where(Review.reviewee_id == user_with_sports.id)
     )
     total_reviews = total_reviews_result.scalar_one()
 
-    # Fetch reviews
     reviews_result = await db.execute(
         select(Review)
-        .options(selectinload(Review.reviewer).selectinload(User.sports))
+        .options(selectinload(Review.reviewer))
         .where(Review.reviewee_id == user_with_sports.id)
         .order_by(Review.created_at.desc())
     )
@@ -134,16 +135,18 @@ async def get_my_profile(user: User, db: AsyncSession) -> UserResponse:
         status=user_with_sports.status,
         sports=[UserSportResponse.model_validate(s) for s in user_with_sports.sports],
         total_reviews=total_reviews,
-        reviews=[ReviewResponse.model_validate(review) for review in reviews],
+        reviews=[ReviewResponse.model_validate(r) for r in reviews],
         stats=UserStatsResponse(
             followers=followers_count,
             following=following_count,
+            rating=round(user_with_sports.avg_rating, 1),
             matches=user_with_sports.total_games_played,
         ),
         actions=UserActionsResponse(
             can_follow=False,
             can_message=False,
             can_rate=False,
+            is_following=False,
             is_own_profile=True,
         ),
         settings=UserSettingsResponse(
@@ -171,36 +174,17 @@ async def update_profile(
 ) -> UpdateProfileResponse:
     """
     Update the authenticated user's profile.
-    Only updates fields that are explicitly provided (non-None).
-    
-    Fields updated:
-    - full_name: User's display name
-    - bio: User's bio/description
-    - sports: List of sports with skill levels (replaces all existing)
-    - avatar_file: Profile photo (uploaded file)
-    
-    Args:
-        user: Current authenticated user
-        payload: UpdateProfileRequest with optional fields
-        db: Database session
-        avatar_file: Optional uploaded image file
-        
-    Returns:
-        UpdateProfileResponse: Focused response with updated profile data
+    Updates: full_name, bio, sports, avatar
     """
-    # Update name if provided
     if payload.full_name is not None:
         user.full_name = payload.full_name.strip()
-    
-    # Update bio if provided
+
     if payload.bio is not None:
         user.bio = payload.bio.strip()
-    
-    # Update avatar if file uploaded
+
     if avatar_file is not None:
         user.avatar_url = await save_avatar_upload(str(user.id), avatar_file)
 
-    # Replace sports if provided
     if payload.sports is not None:
         existing = await db.execute(
             select(UserSport).where(UserSport.user_id == user.id)
@@ -219,7 +203,6 @@ async def update_profile(
     await db.commit()
     await db.refresh(user)
 
-    # Reload with sports
     result = await db.execute(
         select(User)
         .options(selectinload(User.sports))
@@ -244,7 +227,8 @@ async def get_user_profile(
 ) -> UserProfileResponse:
     """
     Return another user's public profile.
-    Includes followers/following counts, is_following flag and actions.
+    Maps to Public Profile screen in UI.
+    Shows Follow/Message/Rate buttons based on relationship.
     """
     result = await db.execute(
         select(User)
@@ -255,19 +239,18 @@ async def get_user_profile(
     if not target:
         raise UserNotFound()
 
-    # Count followers
+    # ─── Stats ────────────────────────────────────────────────
     followers_count_result = await db.execute(
         select(func.count()).where(Follow.following_id == target_user_id)
     )
     followers_count = followers_count_result.scalar_one()
 
-    # Count following
     following_count_result = await db.execute(
         select(func.count()).where(Follow.follower_id == target_user_id)
     )
     following_count = following_count_result.scalar_one()
 
-    # Check if current user follows this profile
+    # ─── Follow Status ────────────────────────────────────────
     is_following_result = await db.execute(
         select(Follow).where(
             Follow.follower_id == current_user.id,
@@ -275,20 +258,17 @@ async def get_user_profile(
         )
     )
     is_following = is_following_result.scalar_one_or_none() is not None
-
-    # Check if this is own profile
     is_own_profile = current_user.id == target_user_id
 
-    # Count reviews
+    # ─── Reviews ──────────────────────────────────────────────
     total_reviews_result = await db.execute(
         select(func.count()).where(Review.reviewee_id == target_user_id)
     )
     total_reviews = total_reviews_result.scalar_one()
 
-    # Fetch reviews
     reviews_result = await db.execute(
         select(Review)
-        .options(selectinload(Review.reviewer).selectinload(User.sports))
+        .options(selectinload(Review.reviewer))
         .where(Review.reviewee_id == target_user_id)
         .order_by(Review.created_at.desc())
     )
@@ -302,12 +282,12 @@ async def get_user_profile(
         avatar_url=target.avatar_url,
         is_admin=target.is_admin,
         total_reviews=total_reviews,
-        reviews=[ReviewResponse.model_validate(review) for review in reviews],
+        reviews=[ReviewResponse.model_validate(r) for r in reviews],
         sports=[UserSportResponse.model_validate(s) for s in target.sports],
         stats=UserStatsResponse(
             followers=followers_count,
             following=following_count,
-            rating=target.avg_rating,
+            rating=round(target.avg_rating, 1),
         ),
         actions=UserActionsResponse(
             can_follow=not is_own_profile,
@@ -370,7 +350,9 @@ async def follow_user(
             },
         })
     except Exception as e:
-        logger.warning(f"Could not push follow notification to {target_user_id}: {e}")
+        logger.warning(
+            f"Could not push follow notification to {target_user_id}: {e}"
+        )
 
     logger.info(f"User {current_user.id} followed {target_user_id}")
 
@@ -409,6 +391,7 @@ async def get_followers(
 
     query = (
         select(User)
+        .options(selectinload(User.sports))
         .join(Follow, Follow.follower_id == User.id)
         .where(Follow.following_id == target_user_id)
         .order_by(Follow.created_at.desc())
@@ -428,8 +411,10 @@ async def get_following(
 
     query = (
         select(User)
+        .options(selectinload(User.sports))
         .join(Follow, Follow.following_id == User.id)
         .where(Follow.follower_id == target_user_id)
         .order_by(Follow.created_at.desc())
     )
     return await paginate(db, query, pagination)
+

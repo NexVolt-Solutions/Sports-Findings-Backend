@@ -29,14 +29,10 @@ async def create_match(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Create a new match.
-    - Creator is automatically added as host and participant.
-    - Frontend-provided coordinates are stored directly when available.
-    - Address is geocoded asynchronously only when coordinates are missing.
-    - Match immediately appears in host's My Matches.
-    """
-    return await match_service.create_match(payload, current_user, db, background_tasks)
+    """Create a new match. Creator is automatically added as host."""
+    return await match_service.create_match(
+        payload, current_user, db, background_tasks
+    )
 
 
 @router.get("", response_model=PaginatedResponse[MatchSummaryResponse])
@@ -46,14 +42,14 @@ async def list_matches(
     skill_level: SkillLevel | None = Query(default=None),
     date_from: str | None = Query(default=None),
     date_to: str | None = Query(default=None),
-    lat: float | None = Query(default=None, description="User's current latitude"),
-    lng: float | None = Query(default=None, description="User's current longitude"),
+    lat: float | None = Query(default=None),
+    lng: float | None = Query(default=None),
     radius_km: int = Query(default=20, ge=1, le=100),
     pagination: PaginationParams = Depends(),
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """List matches using a single endpoint. Use `type=my` or `type=nearby` for specialized views."""
+    """List matches. Use type=my for user matches, type=nearby for proximity search."""
     return await match_service.list_matches_by_type(
         list_type=type,
         current_user=current_user,
@@ -87,10 +83,7 @@ async def update_match(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Update match details. Host only.
-    Cannot edit a match that is Ongoing, Completed, or Cancelled.
-    """
+    """Update match details. Host only."""
     return await match_service.update_match(
         match_id, payload, current_user, db, background_tasks
     )
@@ -102,10 +95,7 @@ async def delete_match(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Permanently delete a match. Host only.
-    Accessible from the Edit Match screen.
-    """
+    """Delete a match. Host only."""
     await match_service.delete_match(match_id, current_user, db)
 
 
@@ -116,12 +106,10 @@ async def join_match(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Join an open match.
-    Blocked if match is Full, Ongoing, Completed, or Cancelled.
-    Notifies the host when a new player joins.
-    """
-    return await match_service.join_match(match_id, current_user, db, background_tasks)
+    """Join an open match. Notifies the host."""
+    return await match_service.join_match(
+        match_id, current_user, db, background_tasks
+    )
 
 
 @router.delete("/{match_id}/leave", response_model=MessageResponse)
@@ -130,11 +118,7 @@ async def leave_match(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Leave a match.
-    Host cannot leave — must delete the match instead.
-    Leaving a full match reopens the slot.
-    """
+    """Leave a match. Host cannot leave — must delete instead."""
     return await match_service.leave_match(match_id, current_user, db)
 
 
@@ -146,11 +130,7 @@ async def remove_player(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Remove a player from the match. Host only.
-    Removing a player from a full match reopens the slot (FULL → OPEN).
-    Notifies the removed player.
-    """
+    """Remove a player from the match. Host only."""
     return await match_service.remove_player(
         match_id, user_id, current_user, db, background_tasks
     )
@@ -164,30 +144,57 @@ async def update_match_status(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Update match status. Host only.
-    Start Game (ONGOING): can be triggered at any time — full slots NOT required.
-    Valid: OPEN|FULL → ONGOING, ONGOING → COMPLETED, OPEN|FULL → CANCELLED.
-    """
+    """Update match status. Host only. OPEN|FULL → ONGOING → COMPLETED."""
     return await match_service.update_match_status(
         match_id, payload, current_user, db, background_tasks
     )
 
 
-@router.post("/{match_id}/invite", response_model=MessageResponse, status_code=201)
+@router.post("/{match_id}/invite/{user_id}", response_model=MessageResponse, status_code=201)
 async def invite_player(
     match_id: uuid.UUID,
-    invited_user_id: uuid.UUID,
+    user_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Invite a registered user to join the match. Host only.
-    Sends a MATCH_INVITED notification to the invited user.
-    Cannot invite to ONGOING, COMPLETED, or CANCELLED matches.
+    Invite a user to join the match. Host only.
+    Sends MATCH_INVITED notification with Accept/Decline actions.
     """
-    return await match_service.invite_player(match_id, invited_user_id, current_user, db)
+    return await match_service.invite_player(
+        match_id, user_id, current_user, db, background_tasks
+    )
 
 
-# Note: GET /matches/{match_id}/messages is handled in app/routes/chat.py
-# It is registered on the chat router with the /api/v1 prefix in main.py
+@router.post("/{match_id}/invite/accept", response_model=MessageResponse)
+async def accept_invite(
+    match_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Accept a match invitation.
+    Joins the match and notifies the host.
+    """
+    return await match_service.accept_invite(
+        match_id, current_user, db, background_tasks
+    )
+
+
+@router.post("/{match_id}/invite/decline", response_model=MessageResponse)
+async def decline_invite(
+    match_id: uuid.UUID,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Decline a match invitation.
+    Notifies the host that the invite was declined.
+    """
+    return await match_service.decline_invite(
+        match_id, current_user, db, background_tasks
+    )
+
