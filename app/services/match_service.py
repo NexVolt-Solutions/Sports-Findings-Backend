@@ -466,6 +466,8 @@ async def update_match(
         match.title = payload.title.strip()
     if payload.description is not None:
         match.description = payload.description.strip()
+    if payload.sport is not None:
+        match.sport = payload.sport
     if payload.scheduled_at is not None:
         match.scheduled_at = payload.scheduled_at
     if payload.duration_minutes is not None:
