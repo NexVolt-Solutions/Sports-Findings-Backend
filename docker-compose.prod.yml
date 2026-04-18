@@ -5,6 +5,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      cache_from: []
+    image: sport-finding-api:latest
     container_name: sport-finding-api
     ports:
       - "8000:8000"

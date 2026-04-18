@@ -96,6 +96,7 @@ class CreateMatchRequest(BaseModel):
 class UpdateMatchRequest(BaseModel):
     title: str | None = None
     description: str | None = None
+    sport: SportType | None = None
     facility_address: str | None = None
     location: str | None = None
     location_name: str | None = None
