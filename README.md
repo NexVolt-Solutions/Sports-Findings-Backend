@@ -1,969 +1,188 @@
-# Sports Platform — Backend API
+# Sports Platform API
 
-A comprehensive, production-ready FastAPI async backend for discovering, creating, and joining local sports matches.
+## Project Overview
 
-**Supports:** Football, Basketball, Cricket, Tennis, Volleyball, and Badminton.
+Sports Platform is a backend API for a mobile/web app that connects players, hosts and matches. It provides user accounts, match discovery and management, reviews, support requests, and admin tools for managing site content such as Terms of Service, Privacy Policy, and Help & Support pages.
 
----
+This repository contains the FastAPI-based server, database migrations (Alembic), and Docker files for local development and production deployment.
 
-## Overview
+## Key Features
 
-Sports Platform is a community-driven sports matching service that connects players, enables real-time collaboration, and provides comprehensive match discovery. The backend handles:
+- User registration, authentication, and profile management
+- Match creation, discovery, joining, and moderation
+- Review system for participants
+- Support request handling
+- Admin dashboard: user, match, review moderation, support requests
+- Admin-managed content pages: Terms of Service, Privacy Policy, Help & Support
 
-- **User Management** — Authentication with email verification, Google OAuth, and secure session handling
-- **Match Discovery** — Nearby match search with Haversine-based geolocation and multi-filter discovery
-- **Real-Time Features** — WebSocket-powered chat and in-app notifications
-- **Social System** — Follow players, leave ratings and reviews, send match invitations
-- **Admin Dashboard** — Complete administrative panel for user, match, review, and content management
-- **Production Ready** — Docker containerization, comprehensive testing, background task handling, rate limiting
+## Technology Stack
 
----
+- Python 3.10+
+- FastAPI
+- SQLAlchemy (async) + Alembic
+- PostgreSQL (recommended)
+- Docker & docker-compose
 
-## Tech Stack
+## Getting Started — Local Development
 
-| Layer | Technology |
-|---|---|
-| Framework | FastAPI 0.115.0 (Python 3.12) |
-| Server | Uvicorn (ASGI) + Gunicorn (production) |
-| Database | PostgreSQL 15+ with asyncpg driver |
-| ORM | SQLAlchemy 2.0 (async) |
-| Migrations | Alembic |
-| Auth | JWT (python-jose) + bcrypt (passlib) |
-| Real-Time | FastAPI WebSockets |
-| Rate Limiting | slowapi |
-| Geocoding | Google Maps Geocoding API |
-| Email | FastAPI-Mail (SMTP) |
-| Testing | pytest + pytest-asyncio + httpx |
-| Containerization | Docker + docker-compose |
+Prerequisites
+- Python 3.10+
+- pip
+- Docker (optional, recommended for DB)
 
----
+Clone the repo
 
-## Local Setup (Windows + Python 3.12)
+  git clone <repo-url>
+  cd sports_platform
 
-### Prerequisites
+Create a virtual environment
 
-- Python 3.12 installed — verify with: `python --version`
-- PostgreSQL installed and running
-- Git installed
+  python -m venv .venv
+  .\.venv\Scripts\activate
 
----
+Install dependencies
 
-### Step 1 — Clone the Repository
+  pip install -r requirements.txt
 
-```bash
-git clone https://github.com/your-org/sports-platform.git
-cd sports-platform
-```
+Create environment variables
 
----
+Copy `.env.example` (if provided) or create `.env` with the variables listed below.
 
-### Step 2 — Create a Virtual Environment
+Common environment variables
 
-```bash
-python -m venv venv
-```
+- DATABASE_URL — SQLAlchemy database URL (e.g. postgresql+asyncpg://user:pass@localhost:5432/dbname)
+- SECRET_KEY — application secret for tokens and security
+- API_V1_STR — API prefix (default: /api/v1)
+- SMTP_* — mail settings if email features are used
 
-Activate it on Windows:
+Note: This project expects an async PostgreSQL driver (asyncpg) when using PostgreSQL.
 
-```bash
-venv\Scripts\activate
-```
+Run database migrations
 
-You should see `(venv)` at the start of your terminal prompt.
+  alembic upgrade head
 
----
+Start the app
 
-### Step 3 — Install Dependencies
+  uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-```bash
-pip install -r requirements.txt
-```
+Or using Docker Compose (recommended for local dev)
 
----
+  docker-compose up --build
 
-### Step 4 — Set Up the Database
+Run tests
 
-Open **pgAdmin** or **psql** and create two databases:
-- `sports_platform` — development database
-- `sports_platform_test` — test database (used by pytest)
+  pytest
 
-```sql
-CREATE DATABASE sports_platform;
-CREATE DATABASE sports_platform_test;
-```
+## API Overview
 
----
+Base URL: /api/v1 (check `API_V1_STR` in configuration)
 
-### Step 5 — Configure Environment Variables
+Authentication
+- Uses JWT bearer tokens. Obtain token via the auth endpoints (see project-specific auth routes).
 
-Copy the example file and fill in your values:
+Admin endpoints (examples)
+- GET /admin/content/terms-of-service — Fetch Terms of Service content
+- PUT /admin/content/terms-of-service — Update Terms of Service (admin only)
+- GET /admin/content/privacy-policy — Fetch Privacy Policy content
+- PUT /admin/content/privacy-policy — Update Privacy Policy (admin only)
+- GET /admin/content/help-support — Fetch Help & Support content
+- PUT /admin/content/help-support — Update Help & Support (admin only)
 
-```bash
-copy .env.example .env
-```
+Other notable admin endpoints
+- GET /admin/dashboard — Dashboard metrics
+- GET /admin/users — List users (supports filters)
+- POST /admin/users — Create user (admin)
+- PUT /admin/matches/{match_id} — Edit match
+- GET /admin/support-requests — List support requests
 
-Open `.env` and update the following required fields:
-
-```env
-DATABASE_URL=postgresql+asyncpg://postgres:YOUR_PASSWORD@localhost:5432/sports_platform
-SECRET_KEY=your_super_secret_key_change_this
-```
-
-Generate a secure SECRET_KEY:
-
-```bash
-python -c "import secrets; print(secrets.token_hex(32))"
-```
-
-> Optional fields (Google OAuth, Maps, Email, Firebase, Cloudinary)
-> can be left blank for Phase 1 development. Features using those
-> services will be skipped until configured.
-
----
-
-### Step 6 — Run Database Migrations
-
-Generate and apply the initial migration:
-
-```bash
-alembic revision --autogenerate -m "initial_schema"
-alembic upgrade head
-```
-
-To check current migration status:
-
-```bash
-alembic current
-```
-
-To roll back one migration:
-
-```bash
-alembic downgrade -1
-```
-
----
-
-### Step 7 — Start the Development Server
-
-```bash
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-The API is now running at: **http://localhost:8000**
-
----
-
-## API Documentation
-
-Once the server is running, visit:
-
-| URL | Description |
-|---|---|
-| http://localhost:8000/docs | Swagger UI (interactive API explorer) |
-| http://localhost:8000/redoc | ReDoc (readable API documentation) |
-| http://localhost:8000/openapi.json | OpenAPI schema |
-| http://localhost:8000/health | Health check endpoint (load balancer friendly) |
-
-### REST API Endpoints
-
-All REST endpoints are versioned under `/api/v1`:
-
-#### **Authentication** (`/api/v1/auth`)
-- `POST /register` — Register with email and password
-- `POST /login` — Login (returns access + refresh tokens)
-- `POST /google` — Google OAuth authentication
-- `POST /refresh` — Refresh access token using refresh token
-- `POST /logout` — Logout (invalidate tokens)
-- `POST /verify-email` — Verify email with OTP
-- `POST /resend-verification-otp` — Resend verification OTP
-- `POST /forgot-password` — Request password reset email
-- `POST /resend-reset-password-otp` — Resend password reset OTP
-- `POST /verify-reset-password-otp` — Verify password reset OTP
-- `POST /reset-password` — Reset password after OTP verification
-
-#### **Users** (`/api/v1/users`)
-- `GET /me` — Get authenticated user's profile
-- `PUT /me` — Update profile (bio, location, sports, skill levels)
-- `POST /me/avatar` — Upload profile avatar
-- `GET /{user_id}` — Get user's public profile
-- `GET /{user_id}/stats` — Get user's match statistics
-- `GET /{user_id}/reviews` — Get reviews left on a user
-- `POST /{user_id}/reviews` — Leave a review and rating
-- `POST /{user_id}/follow` — Follow a user
-- `DELETE /{user_id}/follow` — Unfollow a user
-- `GET /{user_id}/followers` — List user's followers
-- `GET /{user_id}/following` — List users being followed
-
-#### **Matches** (`/api/v1/matches`)
-- `POST /` — Create a new match (creator auto-joins as host)
-- `GET /my` — List matches the current user is participating in
-- `GET /nearby` — Discover nearby matches (with filters)
-- `GET /` — List all matches with filters (sport, date, status)
-- `GET /{match_id}` — Get match details
-- `PUT /{match_id}` — Update match details (host only)
-- `DELETE /{match_id}` — Delete match (host only)
-- `POST /{match_id}/join` — Join an active match
-- `DELETE /{match_id}/leave` — Leave a match
-- `DELETE /{match_id}/players/{user_id}` — Remove player (host only)
-- `PATCH /{match_id}/status` — Update match status (host only)
-- `POST /{match_id}/invite` — Send match invitation to a user
-- `GET /{match_id}/messages` — Retrieve match chat history
-
-#### **Notifications** (`/api/v1/notifications`)
-- `GET /` — Get user's notifications (paginated)
-- `PATCH /{notification_id}/read` — Mark notification as read
-- `PATCH /read-all` — Mark all notifications as read
-
-#### **Admin** (`/api/v1/admin`)
-- `GET /dashboard` — Dashboard statistics (total users, matches, etc.)
-- `GET /users` — List all users (searchable, filterable)
-- `POST /users` — Create user manually
-- `GET /users/{user_id}` — Get user details (admin view)
-- `PATCH /users/{user_id}/block` — Block/unblock user
-- `DELETE /users/{user_id}` — Delete user
-- `GET /matches` — List all matches
-- `GET /matches/{match_id}` — Get match details
-- `PUT /matches/{match_id}` — Update match
-- `DELETE /matches/{match_id}` — Delete match
-- `GET /reviews/users` — List users with reviews
-- `GET /reviews/users/{user_id}` — Get user's reviews for moderation
-- `DELETE /reviews/{review_id}` — Delete a review
-- `GET /content/{section}` — Get CMS content (terms, privacy, etc.)
-- `PUT /content/{section}` — Update CMS content
-- `GET /support-requests` — List support requests
-- `GET /support-requests/{request_id}` — Get support request details
-- `PATCH /support-requests/{request_id}/resolve` — Mark resolved
-- `DELETE /support-requests/{request_id}` — Delete support request
-- `GET /account` — Admin's account details
-- `PUT /account` — Update admin profile
-- `PATCH /account/password` — Change admin password
-
-### WebSocket Endpoints
-
-WebSocket endpoints enable real-time communication:
-
-#### **Match Chat** (`/ws/matches/{match_id}/chat`)
-- Real-time bidirectional chat for match participants
-- Automatic message persistence to database
-- Connection validation via JWT token
-
-#### **Notifications** (`/ws/notifications`)
-- Real-time in-app notifications (NEW_FOLLOWER, MATCH_INVITED, etc.)
-- Server-to-client push (async updates)
-- Connection validation via JWT token
-
----
-
-## Running Tests
-
-```bash
-pytest
-```
-
-Run with verbose output:
-
-```bash
-pytest -v
-```
-
-Run a specific test file:
-
-```bash
-pytest tests/test_auth.py -v
-```
-
----
-
-## Project Structure
-
-```
-sports_platform/
-│
-├── app/
-│   ├── main.py                   # FastAPI app initialization, middleware, routers, lifespan
-│   ├── config.py                 # Settings from .env (pydantic-settings)
-│   ├── database.py               # Async SQLAlchemy engine, session, Base model
-│   ├── middleware.py             # Custom middleware (logging, security headers)
-│   │
-│   ├── models/                   # SQLAlchemy ORM models
-│   │   ├── base.py               # Base model with common fields
-│   │   ├── enums.py              # All Enum types (Sport, SkillLevel, MatchStatus, etc.)
-│   │   ├── user.py               # User, UserSport models
-│   │   ├── follow.py             # Follow relationships
-│   │   ├── match.py              # Match model with location, datetime
-│   │   ├── match_player.py       # MatchPlayer junction table
-│   │   ├── message.py            # Chat messages with timestamps
-│   │   ├── review.py             # Review and ratings model
-│   │   ├── notification.py       # In-app notifications
-│   │   ├── content_page.py       # CMS content (terms, privacy, etc.)
-│   │   └── support_request.py    # Support tickets
-│   │
-│   ├── schemas/                  # Pydantic request/response schemas (validation, serialization)
-│   │   ├── common.py             # PaginatedResponse, MessageResponse, ErrorResponse
-│   │   ├── auth.py               # Register, Login, Token, OAuth schemas
-│   │   ├── user.py               # UserResponse, ProfileResponse, StatsResponse
-│   │   ├── match.py              # MatchRequest, MatchResponse, MatchPlayerResponse
-│   │   ├── review.py             # ReviewRequest, ReviewResponse
-│   │   ├── notification.py       # NotificationResponse
-│   │   └── message.py            # MessageRequest, MessageResponse
-│   │
-│   ├── routes/                   # API endpoint definitions (thin layer, business logic in services)
-│   │   ├── auth.py               # /api/v1/auth/* endpoints
-│   │   ├── users.py              # /api/v1/users/* endpoints
-│   │   ├── matches.py            # /api/v1/matches/* endpoints
-│   │   ├── notifications.py      # /api/v1/notifications/* + /ws/notifications
-│   │   ├── chat.py               # /api/v1/matches/{id}/messages + /ws/matches/{id}/chat
-│   │   └── admin.py              # /api/v1/admin/* endpoints (protected by admin role)
-│   │
-│   ├── services/                 # Business logic layer (all domain rules and operations)
-│   │   ├── auth_service.py       # Registration, login, OAuth, password reset, token management
-│   │   ├── user_service.py       # Profile CRUD, stats, followers, following
-│   │   ├── match_service.py      # Match CRUD, discovery, geolocation, player management
-│   │   ├── notification_service.py # Notification creation and queries
-│   │   ├── chat_service.py       # Message storage and retrieval
-│   │   ├── review_service.py     # Review creation and validation
-│   │   └── admin_service.py      # Admin operations on users, matches, reviews, content
-│   │
-│   ├── dependencies/             # FastAPI Depends() dependency injection
-│   │   └── auth.py               # get_current_user, get_current_admin, get_ws_user
-│   │
-│   ├── websockets/               # WebSocket connection management
-│   │   └── connection_manager.py # Broadcast, connection tracking, message queuing
-│   │
-│   ├── background/               # Background task definitions (async, non-blocking)
-│   │   └── tasks.py              # Email tasks (verification, password reset), logging
-│   │
-│   └── utils/                    # Shared utility functions
-│       ├── security.py           # Password hashing, JWT token creation/verification
-│       ├── pagination.py         # PaginationParams, paginate() function
-│       ├── exceptions.py         # Reusable HTTP exceptions
-│       └── geocoding.py          # Google Maps Geocoding API wrapper
-│
-├── alembic/                      # Database migration system
-│   ├── env.py                    # Alembic configuration
-│   ├── script.py.mako            # Migration script template
-│   └── versions/                 # Generated migration files
-│       ├── initial_schema.py
-│       ├── add_email_verification_otp.py
-│       └── add_admin_content_and_support_requests.py
-│
-├── tests/                        # Comprehensive async test suite
-│   ├── conftest.py               # Pytest fixtures and test database setup
-│   ├── test_auth.py              # Authentication endpoint tests
-│   ├── test_users.py             # User profile and stats tests
-│   ├── test_matches.py           # Match CRUD and join/leave tests
-│   ├── test_discovery.py         # Nearby match search and filter tests
-│   ├── test_social.py            # Follow system, reviews, ratings tests
-│   ├── test_chat.py              # WebSocket chat tests
-│   ├── test_admin.py             # Admin dashboard and management tests
-│   └── test_hardening.py         # Security, rate limiting, error handling tests
-│
-├── scripts/                      # Utility scripts
-│   └── create_admin.py           # Create admin user from CLI
-│
-├── postman/                      # Postman API collections for manual testing
-│
-├── Dockerfile                    # Docker image definition (Python 3.12 + Gunicorn)
-├── docker-compose.yml            # Docker Compose for API + PostgreSQL
-├── nginx.conf                    # Nginx reverse proxy configuration
-├── alembic.ini                   # Alembic configuration file
-├── pytest.ini                    # Pytest configuration
-├── requirements.txt              # Python dependencies
-├── .env.example                  # Environment variable template
-├── .gitignore                    # Git ignore rules
-└── README.md                     # This file
-```
-
-### Key Design Patterns
-
-- **Service Layer Pattern** — All business logic isolated in `services/`, routes are thin controllers
-- **Dependency Injection** — FastAPI `Depends()` for authentication, database, pagination
-- **Async Throughout** — Pure async/await, asyncpg driver, asyncio-compatible tests
-- **Pydantic Validation** — Request/response validation with clear error messages
-- **Middleware Stack** — CORS, security headers, request logging, rate limiting
-- **Background Tasks** — Non-blocking operations (email, notifications)
-- **WebSocket Connection Manager** — Safe, efficient broadcast to multiple clients
-
----
-
-## Development Workflow & Implementation Status
-
-The project follows a phased development approach:
-
-### Phase 1 — Foundation ✅ Complete
-- [x] Project skeleton and folder structure
-- [x] Database models (all core tables: users, matches, reviews, notifications, messages)
-- [x] Pydantic schemas for all endpoints
-- [x] Authentication dependencies and JWT flow
-- [x] WebSocket connection manager
-- [x] Route definitions with proper request/response models
-- [x] Service layer with business logic
-- [x] User registration with email verification (OTP-based)
-- [x] Login with email/password and JWT tokens
-- [x] Password reset flow with email OTPs
-- [x] Google OAuth authentication integration
-- [x] Token refresh mechanism
-- [x] Alembic database migrations setup
-- [x] Comprehensive test fixtures and async testing infrastructure
-
-### Phase 2 — Core Match Features ✅ Complete
-- [x] Create match (auto-join creator as host)
-- [x] Update match details and location
-- [x] Delete match (host only)
-- [x] Join active match
-- [x] Leave match
-- [x] View match participants
-- [x] Remove player from match (host only)
-- [x] Match status transitions (ACTIVE, ONGOING, COMPLETED, CANCELLED)
-- [x] My Matches list (paginated, user's participations)
-- [x] Match invitation system with notifications
-
-### Phase 3 — Discovery & Maps ✅ Complete
-- [x] Nearby match search (Haversine distance formula)
-- [x] Multi-filter discovery (sport, distance, skill level, date range)
-- [x] Google Maps Geocoding for address to coordinates
-- [x] Sort by distance, date, availability
-- [x] Pagination support for all list endpoints
-
-### Phase 4 — Real-Time Features ✅ Complete
-- [x] WebSocket chat for match discussions
-- [x] Message persistence (stored in database)
-- [x] Real-time notifications via WebSocket
-- [x] Notification types: NEW_FOLLOWER, MATCH_INVITED, MATCH_STARTED, PLAYER_JOINED
-- [x] Mark notifications as read (individual and bulk)
-- [x] Push notification infrastructure (Firebase stub)
-
-### Phase 5 — Social Features ✅ Complete
-- [x] Follow / Unfollow system
-- [x] NEW_FOLLOWER notification
-- [x] Player reviews and ratings (1-5 stars)
-- [x] Post-match reviews (validated against match participation)
-- [x] Average rating calculation and updates
-- [x] Reviews can be viewed on user profiles
-- [x] Admin review moderation and deletion
-
-### Phase 6 — Admin Panel ✅ Complete
-- [x] Admin dashboard with key statistics
-- [x] User management (list, search, filter, view details)
-- [x] User blocking/unblocking
-- [x] User deletion with cascade cleanup
-- [x] Manual user creation
-- [x] Match management (list, view, edit, delete)
-- [x] Review moderation (list, view, delete)
-- [x] CMS content management (terms, privacy policy, about, FAQ)
-- [x] Support request tracking and resolution
-- [x] Admin account management (profile, password change)
-
-### Phase 7 — Production Features (In Progress)
-- [x] Rate limiting (slowapi middleware)
-- [x] Security headers (CORS, CSP, X-Frame-Options, etc.)
-- [x] Docker containerization (Dockerfile + docker-compose)
-- [x] Request logging and monitoring
-- [x] Comprehensive error handling with custom exceptions
-- [ ] Image upload to Cloudinary (avatar, match photos)
-- [ ] Push notifications (FCM for Android, APNs for iOS)
-- [ ] Cache layer (Redis for frequently accessed data)
-- [ ] Background task queue (Celery for async jobs with retry)
-
----
-
-## Admin Account Creation
-
-Run this from the project root to create an admin account:
-
-```bash
-python scripts/create_admin.py
-```
-
-Or with arguments:
-
-```bash
-python scripts/create_admin.py --email admin@example.com --name "Admin User"
-```
-
----
-
-## Common Commands
-
-```bash
-# Start dev server with auto-reload
-uvicorn app.main:app --reload
-
-# Generate a new migration after model changes
-alembic revision --autogenerate -m "describe_your_change"
-
-# Apply all pending migrations
-alembic upgrade head
-
-# Roll back last migration
-alembic downgrade -1
-
-# Run all tests
-pytest
-
-# Run tests with coverage
-pytest --cov=app tests/
-
-# Run tests for a specific module
-pytest tests/test_auth.py -v
-
-# Run tests matching a pattern
-pytest tests/ -k "test_login" -v
-```
-
----
-
-## Docker & Deployment
-
-### Running with Docker Compose
-
-The easiest way to run the application locally with all dependencies:
-
-```bash
-# Build and start the API + PostgreSQL containers
-docker-compose up -d
-
-# View logs
-docker-compose logs -f api
-
-# Stop services
-docker-compose down
-
-# Stop and remove volumes (WARNING: deletes database)
-docker-compose down -v
-```
-
-The API will be available at `http://localhost:8000`.
-
-**Note:** Ensure `.env.production` is configured with the correct `DB_PASSWORD` before running docker-compose.
-
-### Building Docker Image
-
-To manually build the Docker image:
-
-```bash
-# Build
-docker build -t sports-platform:latest .
-
-# Run with environment variables
-docker run -d \
-  -p 8000:8000 \
-  -e DATABASE_URL="postgresql+asyncpg://postgres:password@db:5432/sports_platform" \
-  -e SECRET_KEY="your-secret-key" \
-  sports-platform:latest
-```
-
-### Production Deployment
-
-#### Environment Setup
-
-1. Create `.env.production` with production values:
-
-```env
-DEBUG=False
-ENVIRONMENT=production
-APP_BASE_URL=https://api.sportsplatform.com
-DATABASE_URL=postgresql+asyncpg://user:password@db-host:5432/sports_platform
-SECRET_KEY=<strong-secret-key>
-GOOGLE_MAPS_API_KEY=<key>
-MAIL_USERNAME=<email>
-MAIL_PASSWORD=<password>
-```
-
-2. Generate a strong SECRET_KEY:
-
-```bash
-python -c "import secrets; print(secrets.token_urlsafe(32))"
-```
-
-#### Application Server
-
-The Dockerfile uses **Gunicorn** with **Uvicorn workers** for production:
-
-```dockerfile
-CMD ["gunicorn", "app.main:app", \
-     "--workers", "4", \
-     "--worker-class", "uvicorn.workers.UvicornWorker", \
-     "--bind", "0.0.0.0:8000"]
-```
-
-Adjust `--workers` based on CPU cores: typically `(2 × CPU_count) + 1`.
-
-#### Reverse Proxy (Nginx)
-
-Use `nginx.conf` to proxy requests to Gunicorn:
-
-```bash
-upstream api {
-    server localhost:8000;
-}
-
-server {
-    listen 80;
-    server_name api.sportsplatform.com;
-
-    location / {
-        proxy_pass http://api;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    # WebSocket support
-    location /ws {
-        proxy_pass http://api;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-}
-```
-
-#### Database Migrations in Production
-
-Before deploying new code, run migrations on the production database:
-
-```bash
-# Inside container
-alembic upgrade head
-
-# Or from host (if database is accessible)
-DATABASE_URL="<prod-url>" alembic upgrade head
-```
-
-#### Health Checks
-
-The application exposes a health check endpoint for load balancers:
-
-```bash
-GET /health
-
-Response:
-{
-  "status": "healthy",
-  "app": "Sports Platform",
-  "version": "1.0.0",
-  "environment": "production"
-}
-```
-
-Configure load balancers to periodically check this endpoint.
-
-#### Monitoring & Logging
-
-- **Request Logs:** All HTTP requests are logged with method, path, duration, status
-- **Error Logs:** Unhandled exceptions are logged with full tracebacks
-- **Debug Logs:** Enabled via `DEBUG=True` environment variable
-
-Configure log aggregation (ELK, Datadog, CloudWatch) to ship logs to your monitoring system.
-
----
-
-## Environment Variables Reference
-
-### Required Variables
-
-| Variable | Description | Example |
-|---|---|---|
-| `DATABASE_URL` | PostgreSQL async connection string | `postgresql+asyncpg://postgres:password@localhost:5432/sports_platform` |
-| `SECRET_KEY` | JWT signing secret — keep private and secure | Generated via `openssl rand -hex 32` |
-
-### Optional Variables (Feature Flags)
-
-| Variable | Description | Default |
-|---|---|---|
-| `DEBUG` | Enable debug mode and verbose logging | `False` |
-| `ENVIRONMENT` | Deployment environment | `development` |
-| `APP_BASE_URL` | Application base URL for links | `http://localhost:8000` |
-| `ALGORITHM` | JWT signing algorithm | `HS256` |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | Access token TTL | `15` |
-| `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh token TTL | `30` |
-
-### Google OAuth
-
-| Variable | Description |
-|---|---|
-| `GOOGLE_CLIENT_ID` | Google OAuth client ID (Phase 1) |
-| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret (Phase 1) |
-
-### Google Maps
-
-| Variable | Description |
-|---|---|
-| `GOOGLE_MAPS_API_KEY` | Google Maps Geocoding API key (Phase 3) |
-
-### Email (SMTP)
-
-| Variable | Description | Default |
-|---|---|---|
-| `MAIL_USERNAME` | SMTP email address | Empty (disabled) |
-| `MAIL_PASSWORD` | SMTP email password | Empty (disabled) |
-| `MAIL_FROM` | Email sender address | Empty (uses MAIL_USERNAME) |
-| `MAIL_SERVER` | SMTP server | `smtp.gmail.com` |
-| `MAIL_PORT` | SMTP port | `587` |
-| `MAIL_STARTTLS` | Enable STARTTLS | `True` |
-| `MAIL_SSL_TLS` | Enable SSL/TLS | `False` |
-
-### Firebase (Push Notifications)
-
-| Variable | Description |
-|---|---|
-| `FIREBASE_CREDENTIALS_PATH` | Path to Firebase credentials JSON file (Phase 4) |
-
-### Cloudinary (File Storage)
-
-| Variable | Description |
-|---|---|
-| `CLOUDINARY_CLOUD_NAME` | Cloudinary cloud name (Phase 1) |
-| `CLOUDINARY_API_KEY` | Cloudinary API key (Phase 1) |
-| `CLOUDINARY_API_SECRET` | Cloudinary API secret (Phase 1) |
-
-### Rate Limiting
-
-| Variable | Description | Default |
-|---|---|---|
-| `RATE_LIMIT_AUTH` | Auth endpoints rate limit | `5/minute` |
-| `RATE_LIMIT_GENERAL` | General endpoints rate limit | `60/minute` |
-
-### Pagination
-
-| Variable | Description | Default |
-|---|---|---|
-| `DEFAULT_PAGE_SIZE` | Default page size for paginated responses | `20` |
-| `MAX_PAGE_SIZE` | Maximum allowed page size | `100` |
-
-**Note:** Features requiring unconfigured services (Google OAuth, Maps, Email, Firebase, Cloudinary) will gracefully degrade or show placeholder responses. Start with `DATABASE_URL` and `SECRET_KEY` only for basic development.
-
----
-
-## Testing
-
-### Test Structure
-
-The test suite includes 9 comprehensive test modules covering all features:
-
-| Module | Coverage |
-|---|---|
-| `test_auth.py` | Registration, login, Google OAuth, password reset, email verification |
-| `test_users.py` | Profile CRUD, user stats, reviews, followers/following |
-| `test_matches.py` | Match CRUD, join/leave, player management, status transitions |
-| `test_discovery.py` | Nearby match search, filters, geolocation, pagination |
-| `test_social.py` | Follow/unfollow, reviews and ratings, match invitations |
-| `test_chat.py` | WebSocket chat, message persistence, real-time delivery |
-| `test_admin.py` | Dashboard, user/match/review management, content moderation |
-| `test_hardening.py` | Security, rate limiting, error handling, edge cases |
-| `conftest.py` | Shared fixtures, database setup, async test utilities |
-
-### Running Tests
-
-```bash
-# Run all tests
-pytest
-
-# Run with verbose output and print statements
-pytest -v -s
-
-# Run specific test file
-pytest tests/test_auth.py -v
-
-# Run tests matching a pattern
-pytest -k "login" -v
-
-# Run with coverage report
-pytest --cov=app --cov-report=html tests/
-
-# Run in parallel (faster)
-pip install pytest-xdist
-pytest -n auto
-```
-
-### Test Database
-
-Tests use a dedicated test database (`sports_platform_test`). The test session:
-1. **Setup:** Drops all tables and recreates them clean
-2. **Tests:** Run against fresh database
-3. **Teardown:** Drops all tables
-
-After testing, restore the development database:
-
-```bash
-alembic upgrade head
-```
-
-### Test Fixtures
-
-Common fixtures available in `conftest.py`:
-
-```python
-@pytest.fixture
-async def client() -> AsyncClient:
-    """FastAPI test client with test database"""
-
-@pytest.fixture
-async def test_user(db: AsyncSession) -> User:
-    """Sample user for testing"""
-
-@pytest.fixture
-async def test_match(test_user: User, db: AsyncSession) -> Match:
-    """Sample match for testing"""
-
-@pytest.fixture
-async def auth_token(test_user: User) -> str:
-    """JWT token for authenticated requests"""
-```
-
----
-
-## Quick-Start Checklist
-
-### First Time Setup (5 minutes)
-
-- [ ] Clone repository: `git clone <repo>`
-- [ ] Create virtual environment: `python -m venv venv && source venv/Scripts/activate`
-- [ ] Install dependencies: `pip install -r requirements.txt`
-- [ ] Create PostgreSQL databases:
-  ```sql
-  CREATE DATABASE sports_platform;
-  CREATE DATABASE sports_platform_test;
-  ```
-- [ ] Copy `.env.example` to `.env` and update `DATABASE_URL` and `SECRET_KEY`
-- [ ] Run migrations: `alembic upgrade head`
-- [ ] Start server: `uvicorn app.main:app --reload`
-- [ ] Visit `http://localhost:8000/docs` to test API
-
-### Create Admin Account (1 minute)
-
-```bash
-python scripts/create_admin.py --email admin@example.com --name "Admin User"
-```
-
-### Run Tests (2 minutes)
-
-```bash
-pytest -v
-```
-
-### Try the API (3 minutes)
-
-1. **Register user:**
-   ```bash
-   curl -X POST http://localhost:8000/api/v1/auth/register \
-     -H "Content-Type: application/json" \
-     -d '{"email":"user@example.com","password":"securepass123"}'
-   ```
-
-2. **Login:**
-   ```bash
-   curl -X POST http://localhost:8000/api/v1/auth/login \
-     -H "Content-Type: application/json" \
-     -d '{"email":"user@example.com","password":"securepass123"}'
-   ```
-
-3. **Get profile:**
-   ```bash
-   curl -X GET http://localhost:8000/api/v1/users/me \
-     -H "Authorization: Bearer <your_access_token>"
-   ```
-
-4. **Explore with Swagger:** Open `http://localhost:8000/docs` and try endpoints interactively
-
----
-
-## Architecture Decisions
-
-### Why Async/Await?
-- Non-blocking I/O for database, HTTP, and WebSocket operations
-- Better resource utilization with high concurrency
-- Native WebSocket support via Starlette
-
-### Why Service Layer?
-- Separation of concerns (routes are thin, services contain logic)
-- Easy to test business logic in isolation
-- Reusable business logic across multiple endpoints
-
-### Why WebSockets?
-- Real-time chat without polling
-- Low-latency notifications
-- Persistent connection reduces overhead for multiple messages
-
-### Why Alembic?
-- Database-agnostic migration framework
-- Version control for schema changes
-- Automatic migration generation from models
-
-### Rate Limiting
-- Protection against abuse and DoS
-- Configurable per endpoint
-- Graceful 429 responses with Retry-After header
-
----
-
-## Troubleshooting
-
-### Database Connection Error
-```
-Error: could not translate host name "localhost" to address
-```
-**Solution:** Ensure PostgreSQL is running and `DATABASE_URL` is correct
-
-### "Another operation is in progress" (asyncpg)
-```
-asyncpg.exceptions._DriverError: another operation is in progress
-```
-**Solution:** Tests use `NullPool` to prevent connection sharing. Check if you're reusing connections across async contexts.
-
-### WebSocket Connection Refused
-```
-WebSocket error: connection refused at ws://localhost:8000/ws/...
-```
-**Solution:** Ensure server is running and JWT token is valid. WebSocket connections require authentication.
-
-### Alembic Migration Conflicts
-```
-FAILED target database is not up to date
-```
-**Solution:** Run `alembic upgrade head` to apply all pending migrations before running tests.
-
-### Port Already in Use
-```
-Address already in use (:8000)
-```
-**Solution:** Change port with `--port 8001` or kill the process: `lsof -i :8000 | grep LISTEN | awk '{print $2}' | xargs kill -9`
-
----
+API responses follow pydantic schemas defined in `app/schemas`.
+
+For full API contract, consult the route definitions in `app/routes` and the pydantic models in `app/schemas`.
+
+## Environment & Configuration
+
+- Configuration is read from environment variables and settings modules in `app`.
+- Keep sensitive keys out of source control. Use a secrets manager for production.
+
+## Database Migrations
+
+- Migrations are managed with Alembic. The migration scripts are in the `alembic/versions` directory.
+- To create a new migration after model changes:
+
+  alembic revision --autogenerate -m "describe change"
+  alembic upgrade head
+
+## Deployment
+
+Production deployment options
+
+- Docker: build image using the provided `Dockerfile` and deploy to your container platform.
+- Docker Compose (production): `docker-compose.prod.yml` provides a sample stack.
+- ECS / Kubernetes: use the included task definition or create manifests adapted to your environment.
+
+Typical production steps
+- Build and push Docker image
+- Provision managed PostgreSQL instance
+- Set production environment variables and secrets
+- Run Alembic migrations against the production database
+- Start service behind a reverse proxy (Nginx, ALB, etc.) and use HTTPS
+
+## Developer Notes
+
+- Code layout: routes in `app/routes`, services in `app/services`, models in `app/models`, and pydantic schemas in `app/schemas`.
+- Tests live in `tests/` and use pytest and an async test client.
+- Follow existing code patterns for DI (FastAPI Depends) and async DB sessions.
+
+Adding Admin Content Pages
+- Content pages are stored in `content_pages` (model `ContentPage`) and are keyed by `section`. Valid sections include:
+  - `terms-of-service`
+  - `privacy-policy`
+  - `help-support`
+
+- Frontend manages the content; backend provides GET/PUT endpoints for retrieving and saving content. When updating, ensure the admin user has the appropriate privileges.
 
 ## Contributing
 
-### Code Style
-- Follow PEP 8
-- Use type hints on all functions
-- Keep functions focused (single responsibility)
-- Add docstrings to public APIs
+- Fork the repository and create a feature branch.
+- Ensure tests pass locally before opening a PR.
+- Provide clear commit messages and include `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>` in automated commits (if present).
 
-### Commit Convention
-```
-type(scope): description
+## Troubleshooting & Tips
 
-Longer explanation if needed.
+- If migrations fail, check that `DATABASE_URL` is correct and reachable.
+- Run the test suite after environment changes: `pytest -q`.
+- Use logging configuration to increase verbosity when debugging server behavior.
 
-Fixes #123
-```
+## License & Acknowledgements
 
-Types: `feat`, `fix`, `docs`, `test`, `refactor`, `style`, `chore`
+Add the appropriate license and acknowledgements for third-party libraries and contributors.
 
-### Before Submitting PR
-- [ ] Tests pass: `pytest -v`
-- [ ] Code formatted: `black .` (if configured)
-- [ ] No linting errors: `flake8 app/ tests/` (if configured)
-- [ ] Database migrations work: `alembic upgrade head && alembic downgrade -1 && alembic upgrade head`
 
 ---
 
-## Support
+If anything specific should be added (detailed API examples, Postman collection usage, or CI/CD instructions), indicate what to include and a short example will be added to this README.
 
-For issues, questions, or suggestions:
-- Open an issue on GitHub
-- Contact the development team
-- Check the [Documentation](#api-documentation)
+Badges
+
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://example.com) [![Coverage](https://img.shields.io/badge/coverage-unknown-blue)](https://example.com) [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
+Example cURL requests
+
+Fetch Terms of Service
+
+curl -H "Authorization: Bearer <ADMIN_TOKEN>" "{{API_BASE}}/admin/content/terms-of-service"
+
+Update Privacy Policy
+
+curl -X PUT -H "Authorization: Bearer <ADMIN_TOKEN>" -H "Content-Type: application/json" -d '{"title":"Privacy Policy","content":"New content"}' "{{API_BASE}}/admin/content/privacy-policy"
+
+Update Help & Support
+
+curl -X PUT -H "Authorization: Bearer <ADMIN_TOKEN>" -H "Content-Type: application/json" -d '{"title":"Help & Support","content":"Help content"}' "{{API_BASE}}/admin/content/help-support"
+
+Notes
+
+- Replace {{API_BASE}} with your base API URL (e.g., https://api.example.com/api/v1)
+- Use an admin JWT token; /admin endpoints require admin privileges.
+
+---
