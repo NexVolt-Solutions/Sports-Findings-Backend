@@ -27,15 +27,16 @@ class CreateMatchRequest(BaseModel):
         if not self.facility_address and self.location:
             self.facility_address = self.location.strip()
 
+        if not self.facility_address:
+            raise ValueError("facility_address or location is required")
+
         if self.scheduled_at is None:
             if not self.date or not self.time:
                 raise ValueError("Provide either scheduled_at or both date and time")
-
             try:
                 parsed = datetime.fromisoformat(f"{self.date.strip()}T{self.time.strip()}")
             except ValueError as exc:
                 raise ValueError("Invalid date/time format. Use YYYY-MM-DD and HH:MM") from exc
-
             self.scheduled_at = parsed.replace(tzinfo=timezone.utc)
 
         if self.duration_minutes is None:
@@ -67,7 +68,9 @@ class CreateMatchRequest(BaseModel):
 
     @field_validator("duration_minutes")
     @classmethod
-    def validate_duration(cls, value: int) -> int:
+    def validate_duration(cls, value: int | None) -> int | None:
+        if value is None:
+            return value
         if value < 10:
             raise ValueError("Match duration must be at least 10 minutes")
         if value > 480:
@@ -76,7 +79,9 @@ class CreateMatchRequest(BaseModel):
 
     @field_validator("facility_address")
     @classmethod
-    def validate_address(cls, value: str) -> str:
+    def validate_address(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
         value = value.strip()
         if len(value) < 5:
             raise ValueError("Please enter a valid facility address")
@@ -84,7 +89,9 @@ class CreateMatchRequest(BaseModel):
 
     @field_validator("scheduled_at")
     @classmethod
-    def validate_scheduled_at(cls, value: datetime) -> datetime:
+    def validate_scheduled_at(cls, value: datetime | None) -> datetime | None:
+        if value is None:
+            return value
         now = datetime.now(timezone.utc)
         if value.tzinfo is None:
             value = value.replace(tzinfo=timezone.utc)
@@ -222,8 +229,8 @@ class MatchDetailResponse(BaseModel):
     max_players: int
     current_players: int = 0
     host: UserSummaryResponse
-    host_games_played: int = 0  # Number of matches the host has played
-    participants: list["MatchPlayerResponse"] = []  # List of all participating players
+    host_games_played: int = 0
+    participants: list["MatchPlayerResponse"] = []
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -235,3 +242,4 @@ class MatchPlayerResponse(BaseModel):
     joined_at: datetime
 
     model_config = {"from_attributes": True}
+
