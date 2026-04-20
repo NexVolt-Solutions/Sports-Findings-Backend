@@ -20,6 +20,7 @@ jobs:
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "i-049c28cba2c29e5df" \
             --document-name "AWS-RunShellScript" \
+            --timeout-seconds 600 \
             --parameters 'commands=["set -e; set -x; cd /home/ubuntu/Sports-Findings-Backend && git fetch origin main && git reset --hard origin/main && git clean -fd && docker-compose -f docker-compose.prod.yml down && docker-compose -f docker-compose.prod.yml up -d --build && sleep 30 && docker-compose -f docker-compose.prod.yml exec -T api alembic upgrade head && echo Deploy completed successfully"]' \
             --region ap-southeast-2 \
             --query "Command.CommandId" \
@@ -28,19 +29,25 @@ jobs:
           echo "Command ID: $COMMAND_ID"
           echo "Waiting for deployment to complete..."
 
-          aws ssm wait command-executed \
-            --command-id "$COMMAND_ID" \
-            --instance-id "i-049c28cba2c29e5df" \
-            --region ap-southeast-2
+          # Poll manually instead of using waiter (avoids timeout issues)
+          for i in $(seq 1 30); do
+            sleep 20
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id "$COMMAND_ID" \
+              --instance-id "i-049c28cba2c29e5df" \
+              --region ap-southeast-2 \
+              --query "Status" \
+              --output text 2>/dev/null || echo "Pending")
+            echo "Poll $i/30 — Status: $STATUS"
+            if [ "$STATUS" = "Success" ]; then
+              break
+            fi
+            if [ "$STATUS" = "Failed" ] || [ "$STATUS" = "Cancelled" ] || [ "$STATUS" = "TimedOut" ]; then
+              break
+            fi
+          done
 
-          STATUS=$(aws ssm get-command-invocation \
-            --command-id "$COMMAND_ID" \
-            --instance-id "i-049c28cba2c29e5df" \
-            --region ap-southeast-2 \
-            --query "Status" \
-            --output text)
-
-          echo "Deployment status: $STATUS"
+          echo "Final status: $STATUS"
 
           echo "=== STDOUT ==="
           aws ssm get-command-invocation \
