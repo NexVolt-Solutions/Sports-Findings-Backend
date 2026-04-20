@@ -21,7 +21,7 @@ jobs:
             --instance-ids "i-049c28cba2c29e5df" \
             --document-name "AWS-RunShellScript" \
             --timeout-seconds 600 \
-            --parameters 'commands=["set -e; git config --global --add safe.directory /home/ubuntu/Sports-Findings-Backend; cd /home/ubuntu/Sports-Findings-Backend && git fetch origin main && git reset --hard origin/main && git clean -fd && docker-compose -f docker-compose.prod.yml down && docker-compose -f docker-compose.prod.yml up -d --build && sleep 30 && docker-compose -f docker-compose.prod.yml exec -T api alembic upgrade head && echo Deploy completed successfully"]' \
+            --parameters 'commands=["export HOME=/root; export PATH=$PATH:/usr/local/bin:/usr/bin; set -e; git config --global --add safe.directory /home/ubuntu/Sports-Findings-Backend; cd /home/ubuntu/Sports-Findings-Backend && git fetch origin main && git reset --hard origin/main && git clean -fd && docker-compose -f docker-compose.prod.yml down && docker-compose -f docker-compose.prod.yml up -d --build && sleep 30 && docker-compose -f docker-compose.prod.yml exec -T api alembic upgrade head && echo Deploy completed successfully"]' \
             --region ap-southeast-2 \
             --query "Command.CommandId" \
             --output text)
