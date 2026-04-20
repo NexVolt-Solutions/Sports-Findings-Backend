@@ -37,10 +37,6 @@ async def list_users(
     db: AsyncSession,
     search: str | None = None,
 ) -> PaginatedResponse:
-    """
-    Return paginated list of public user cards.
-    Excludes current user, admins, and non-active accounts.
-    """
     query = (
         select(User)
         .options(selectinload(User.sports))
@@ -88,10 +84,6 @@ async def list_users(
 
 
 async def get_my_profile(user: User, db: AsyncSession) -> UserResponse:
-    """
-    Return the authenticated user's own full profile.
-    Maps to Private Profile screen in UI.
-    """
     result = await db.execute(
         select(User)
         .options(selectinload(User.sports))
@@ -99,7 +91,6 @@ async def get_my_profile(user: User, db: AsyncSession) -> UserResponse:
     )
     user_with_sports = result.scalar_one()
 
-    # ─── Stats ────────────────────────────────────────────────
     followers_result = await db.execute(
         select(func.count()).where(Follow.following_id == user.id)
     )
@@ -110,7 +101,6 @@ async def get_my_profile(user: User, db: AsyncSession) -> UserResponse:
     )
     following_count = following_result.scalar_one()
 
-    # ─── Reviews ──────────────────────────────────────────────
     total_reviews_result = await db.execute(
         select(func.count()).where(Review.reviewee_id == user_with_sports.id)
     )
@@ -172,10 +162,6 @@ async def update_profile(
     db: AsyncSession,
     avatar_file: UploadFile | None = None,
 ) -> UpdateProfileResponse:
-    """
-    Update the authenticated user's profile.
-    Updates: full_name, bio, sports, avatar
-    """
     if payload.full_name is not None:
         user.full_name = payload.full_name.strip()
 
@@ -191,6 +177,9 @@ async def update_profile(
         )
         for sport_record in existing.scalars().all():
             await db.delete(sport_record)
+
+        # ✅ Flush deletes before inserts to avoid unique constraint violation
+        await db.flush()
 
         for sport_entry in payload.sports:
             new_sport = UserSport(
@@ -225,11 +214,6 @@ async def get_user_profile(
     current_user: User,
     db: AsyncSession,
 ) -> UserProfileResponse:
-    """
-    Return another user's public profile.
-    Maps to Public Profile screen in UI.
-    Shows Follow/Message/Rate buttons based on relationship.
-    """
     result = await db.execute(
         select(User)
         .options(selectinload(User.sports))
@@ -239,7 +223,6 @@ async def get_user_profile(
     if not target:
         raise UserNotFound()
 
-    # ─── Stats ────────────────────────────────────────────────
     followers_count_result = await db.execute(
         select(func.count()).where(Follow.following_id == target_user_id)
     )
@@ -250,7 +233,6 @@ async def get_user_profile(
     )
     following_count = following_count_result.scalar_one()
 
-    # ─── Follow Status ────────────────────────────────────────
     is_following_result = await db.execute(
         select(Follow).where(
             Follow.follower_id == current_user.id,
@@ -260,7 +242,6 @@ async def get_user_profile(
     is_following = is_following_result.scalar_one_or_none() is not None
     is_own_profile = current_user.id == target_user_id
 
-    # ─── Reviews ──────────────────────────────────────────────
     total_reviews_result = await db.execute(
         select(func.count()).where(Review.reviewee_id == target_user_id)
     )
@@ -305,7 +286,6 @@ async def follow_user(
     db: AsyncSession,
     background_tasks=None,
 ) -> None:
-    """Follow another user."""
     if target_user_id == current_user.id:
         raise bad_request("You cannot follow yourself")
 
@@ -362,7 +342,6 @@ async def unfollow_user(
     current_user: User,
     db: AsyncSession,
 ) -> None:
-    """Unfollow a user."""
     result = await db.execute(
         select(Follow).where(
             Follow.follower_id == current_user.id,
@@ -384,7 +363,6 @@ async def get_followers(
     pagination: PaginationParams,
     db: AsyncSession,
 ) -> PaginatedResponse:
-    """Return paginated followers list for a user."""
     result = await db.execute(select(User).where(User.id == target_user_id))
     if not result.scalar_one_or_none():
         raise UserNotFound()
@@ -404,7 +382,6 @@ async def get_following(
     pagination: PaginationParams,
     db: AsyncSession,
 ) -> PaginatedResponse:
-    """Return paginated list of users a user follows."""
     result = await db.execute(select(User).where(User.id == target_user_id))
     if not result.scalar_one_or_none():
         raise UserNotFound()
