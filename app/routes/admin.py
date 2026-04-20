@@ -159,23 +159,61 @@ async def delete_review(
     return await admin_service.delete_review(review_id, db)
 
 
-@router.get("/content/{section}", response_model=ContentPageResponse)
-async def get_content_page(
-    section: str,
+@router.get("/content/terms-of-service", response_model=ContentPageResponse)
+async def get_terms_of_service(
     admin: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    return await admin_service.get_content_page(section, db)
+    """Fetch the Terms of Service content (managed by frontend)."""
+    return await admin_service.get_content_page("terms-of-service", db)
 
 
-@router.put("/content/{section}", response_model=MessageResponse)
-async def update_content_page(
-    section: str,
+@router.put("/content/terms-of-service", response_model=MessageResponse)
+async def update_terms_of_service(
     payload: UpdateContentPageRequest,
     admin: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    return await admin_service.update_content_page(section, payload, db)
+    """Update the Terms of Service content (admin-managed via frontend)."""
+    return await admin_service.update_content_page("terms-of-service", payload, db)
+
+
+@router.get("/content/privacy-policy", response_model=ContentPageResponse)
+async def get_privacy_policy(
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Fetch the Privacy Policy content (managed by frontend)."""
+    return await admin_service.get_content_page("privacy-policy", db)
+
+
+@router.put("/content/privacy-policy", response_model=MessageResponse)
+async def update_privacy_policy(
+    payload: UpdateContentPageRequest,
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update the Privacy Policy content (admin-managed via frontend)."""
+    return await admin_service.update_content_page("privacy-policy", payload, db)
+
+
+@router.get("/content/help-support", response_model=ContentPageResponse)
+async def get_help_support(
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Fetch the Help & Support content (managed by frontend)."""
+    return await admin_service.get_content_page("help-support", db)
+
+
+@router.put("/content/help-support", response_model=MessageResponse)
+async def update_help_support(
+    payload: UpdateContentPageRequest,
+    admin: User = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update the Help & Support content (admin-managed via frontend)."""
+    return await admin_service.update_content_page("help-support", payload, db)
 
 
 @router.get("/support-requests", response_model=PaginatedResponse[SupportRequestListItemResponse])
