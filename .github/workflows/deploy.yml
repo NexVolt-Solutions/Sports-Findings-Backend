@@ -21,7 +21,7 @@ jobs:
             --instance-ids "i-049c28cba2c29e5df" \
             --document-name "AWS-RunShellScript" \
             --timeout-seconds 600 \
-            --parameters 'commands=["set -e; set -x; cd /home/ubuntu/Sports-Findings-Backend && git fetch origin main && git reset --hard origin/main && git clean -fd && docker-compose -f docker-compose.prod.yml down && docker-compose -f docker-compose.prod.yml up -d --build && sleep 30 && docker-compose -f docker-compose.prod.yml exec -T api alembic upgrade head && echo Deploy completed successfully"]' \
+            --parameters 'commands=["set -e; git config --global --add safe.directory /home/ubuntu/Sports-Findings-Backend; cd /home/ubuntu/Sports-Findings-Backend && git fetch origin main && git reset --hard origin/main && git clean -fd && docker-compose -f docker-compose.prod.yml down && docker-compose -f docker-compose.prod.yml up -d --build && sleep 30 && docker-compose -f docker-compose.prod.yml exec -T api alembic upgrade head && echo Deploy completed successfully"]' \
             --region ap-southeast-2 \
             --query "Command.CommandId" \
             --output text)
@@ -29,7 +29,6 @@ jobs:
           echo "Command ID: $COMMAND_ID"
           echo "Waiting for deployment to complete..."
 
-          # Poll manually instead of using waiter (avoids timeout issues)
           for i in $(seq 1 30); do
             sleep 20
             STATUS=$(aws ssm get-command-invocation \
