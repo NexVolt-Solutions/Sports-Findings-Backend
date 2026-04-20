@@ -161,10 +161,9 @@ async def delete_review(
 
 @router.get("/content/terms-of-service", response_model=ContentPageResponse)
 async def get_terms_of_service(
-    admin: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Fetch the Terms of Service content (managed by frontend)."""
+    """Fetch the Terms of Service content (public; served on landing page)."""
     return await admin_service.get_content_page("terms-of-service", db)
 
 
@@ -180,10 +179,9 @@ async def update_terms_of_service(
 
 @router.get("/content/privacy-policy", response_model=ContentPageResponse)
 async def get_privacy_policy(
-    admin: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Fetch the Privacy Policy content (managed by frontend)."""
+    """Fetch the Privacy Policy content (public; served on landing page)."""
     return await admin_service.get_content_page("privacy-policy", db)
 
 
@@ -199,10 +197,9 @@ async def update_privacy_policy(
 
 @router.get("/content/help-support", response_model=ContentPageResponse)
 async def get_help_support(
-    admin: User = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    """Fetch the Help & Support content (managed by frontend)."""
+    """Fetch the Help & Support content (public; served on landing page)."""
     return await admin_service.get_content_page("help-support", db)
 
 
