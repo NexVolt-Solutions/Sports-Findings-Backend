@@ -545,18 +545,47 @@ async def join_match(
             raise MatchFull()
         raise MatchNotOpen()
 
-    existing = await db.execute(
+
+    existing_result = await db.execute(
         select(MatchPlayer).where(
             and_(
                 MatchPlayer.match_id == match_id,
                 MatchPlayer.user_id == current_user.id,
-                MatchPlayer.status == MatchPlayerStatus.ACTIVE,
             )
         )
     )
-    if existing.scalar_one_or_none():
-        raise AlreadyJoined()
+    existing = existing_result.scalar_one_or_none()
 
+    if existing:
+        if existing.status == MatchPlayerStatus.ACTIVE:
+            raise AlreadyJoined()
+        elif existing.status == MatchPlayerStatus.REMOVED:
+            raise bad_request("You were removed from this match and cannot rejoin.")
+        elif existing.status == MatchPlayerStatus.LEFT:
+            active_count = await _count_active_players(match_id, db)
+            if active_count >= match.max_players:
+                raise MatchFull()
+
+            existing.status = MatchPlayerStatus.ACTIVE
+            existing.joined_at = datetime.now(timezone.utc)
+
+            new_count = active_count + 1
+            if new_count >= match.max_players:
+                match.status = MatchStatus.FULL
+
+            await db.commit()
+
+            background_tasks.add_task(
+                send_match_joined_notification,
+                match_id,
+                match.host_id,
+                current_user.full_name,
+            )
+
+            logger.info(f"User {current_user.id} rejoined match {match_id}")
+            return MessageResponse(message="You have successfully joined the match.")
+
+    # New user joining for the first time
     active_count = await _count_active_players(match_id, db)
     if active_count >= match.max_players:
         raise MatchFull()
