@@ -32,10 +32,10 @@ class Review(UUIDMixin, TimestampMixin, Base):
         nullable=False,
         index=True,
     )
-    match_id: Mapped[uuid.UUID] = mapped_column(
+    match_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("matches.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
     rating: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -48,7 +48,7 @@ class Review(UUIDMixin, TimestampMixin, Base):
     reviewee: Mapped["User"] = relationship(
         "User", back_populates="reviews_received", foreign_keys=[reviewee_id]
     )
-    match: Mapped["Match"] = relationship("Match", back_populates="reviews")
+    match: Mapped["Match | None"] = relationship("Match", back_populates="reviews")
 
     def __repr__(self) -> str:
         return f"<Review id={self.id} rating={self.rating} reviewer={self.reviewer_id}>"

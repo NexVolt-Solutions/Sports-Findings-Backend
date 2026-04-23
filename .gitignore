@@ -23,6 +23,7 @@ ENV/
 .env.*
 !.env.example
 !.env.*.example
+.env.example
 
 # ─── Local / production overrides (if you add them) ───────────────────────────
 *.pem
