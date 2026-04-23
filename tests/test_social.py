@@ -2,7 +2,7 @@
 Phase 5 — Social Features Tests
 
 Tests for:
-- Reviews: create, validation, duplicate prevention, completed-match-only
+- Reviews: create, validation, duplicate prevention
 - Player invitations: host-only, status checks, duplicate prevention
 - Follow notifications: DB record created on follow
 """
@@ -103,17 +103,13 @@ async def add_player_to_match(
 # ─── Review Tests ─────────────────────────────────────────────────────────────
 
 async def test_create_review_success(client: AsyncClient, db_session: AsyncSession):
-    """Participant should be able to review another participant after match completes."""
+    """A user should be able to review another user without any match dependency."""
     host, host_token = await make_user(db_session, "rev_host@example.com", "Review Host")
     player, _ = await make_user(db_session, "rev_player@example.com", "Review Player")
-
-    match = await make_match_with_status(db_session, host, MatchStatus.COMPLETED)
-    await add_player_to_match(db_session, match.id, player.id)
 
     response = await client.post(
         f"/api/v1/users/{player.id}/reviews",
         json={
-            "match_id": str(match.id),
             "rating": 5,
             "comment": "Great player, very cooperative!",
         },
@@ -131,28 +127,29 @@ async def test_create_review_no_comment(client: AsyncClient, db_session: AsyncSe
     host, host_token = await make_user(db_session, "rev_nocomment_h@example.com")
     player, _ = await make_user(db_session, "rev_nocomment_p@example.com")
 
-    match = await make_match_with_status(db_session, host, MatchStatus.COMPLETED)
-    await add_player_to_match(db_session, match.id, player.id)
-
     response = await client.post(
         f"/api/v1/users/{player.id}/reviews",
-        json={"match_id": str(match.id), "rating": 4},
+        json={"rating": 4},
         headers=auth(host_token),
     )
     assert response.status_code == 201
     assert response.json()["comment"] is None
 
 
-async def test_create_profile_review_without_match_id(
+async def test_create_review_ignores_match_id_when_provided(
     client: AsyncClient, db_session: AsyncSession
 ):
-    """Profile reviews should be accepted without forcing a match selection."""
+    """Review creation should ignore match_id and still create a plain profile review."""
     reviewer, reviewer_token = await make_user(db_session, "profile_review_h@example.com")
     reviewee, _ = await make_user(db_session, "profile_review_p@example.com")
 
     response = await client.post(
         f"/api/v1/users/{reviewee.id}/reviews",
-        json={"rating": 5, "comment": "Excellent sportsmanship."},
+        json={
+            "match_id": str(uuid.uuid4()),
+            "rating": 5,
+            "comment": "Excellent sportsmanship.",
+        },
         headers=auth(reviewer_token),
     )
     assert response.status_code == 201
@@ -169,7 +166,7 @@ async def test_create_review_invalid_rating_above_5(client: AsyncClient, db_sess
 
     response = await client.post(
         f"/api/v1/users/{other.id}/reviews",
-        json={"match_id": str(uuid.uuid4()), "rating": 6},
+        json={"rating": 6},
         headers=auth(token),
     )
     assert response.status_code == 422
@@ -182,7 +179,7 @@ async def test_create_review_invalid_rating_below_1(client: AsyncClient, db_sess
 
     response = await client.post(
         f"/api/v1/users/{other.id}/reviews",
-        json={"match_id": str(uuid.uuid4()), "rating": 0},
+        json={"rating": 0},
         headers=auth(token),
     )
     assert response.status_code == 422
@@ -194,7 +191,7 @@ async def test_create_review_self_not_allowed(client: AsyncClient, db_session: A
 
     response = await client.post(
         f"/api/v1/users/{user.id}/reviews",
-        json={"match_id": str(uuid.uuid4()), "rating": 5},
+        json={"rating": 5},
         headers=auth(token),
     )
     assert response.status_code == 400
@@ -206,48 +203,46 @@ async def test_create_review_nonexistent_user(client: AsyncClient, db_session: A
 
     response = await client.post(
         f"/api/v1/users/{uuid.uuid4()}/reviews",
-        json={"match_id": str(uuid.uuid4()), "rating": 3},
+        json={"rating": 3},
         headers=auth(token),
     )
     assert response.status_code == 404
 
 
-async def test_create_review_match_not_completed(client: AsyncClient, db_session: AsyncSession):
-    """Review for a non-completed match should return 400."""
+async def test_create_review_with_open_match_id_still_succeeds(client: AsyncClient, db_session: AsyncSession):
+    """Review creation should not care whether a provided match_id refers to an open match."""
     host, host_token = await make_user(db_session, "rev_open_h@example.com")
     player, _ = await make_user(db_session, "rev_open_p@example.com")
 
     match = await make_match_with_status(db_session, host, MatchStatus.OPEN)
-    await add_player_to_match(db_session, match.id, player.id)
 
     response = await client.post(
         f"/api/v1/users/{player.id}/reviews",
         json={"match_id": str(match.id), "rating": 4},
         headers=auth(host_token),
     )
-    assert response.status_code == 400
+    assert response.status_code == 201
 
 
-async def test_create_review_ongoing_match_rejected(client: AsyncClient, db_session: AsyncSession):
-    """Review for an ONGOING match should return 400."""
+async def test_create_review_with_ongoing_match_id_still_succeeds(client: AsyncClient, db_session: AsyncSession):
+    """Review creation should not care whether a provided match_id refers to an ongoing match."""
     host, host_token = await make_user(db_session, "rev_ongoing_h@example.com")
     player, _ = await make_user(db_session, "rev_ongoing_p@example.com")
 
     match = await make_match_with_status(db_session, host, MatchStatus.ONGOING)
-    await add_player_to_match(db_session, match.id, player.id)
 
     response = await client.post(
         f"/api/v1/users/{player.id}/reviews",
         json={"match_id": str(match.id), "rating": 3},
         headers=auth(host_token),
     )
-    assert response.status_code == 400
+    assert response.status_code == 201
 
 
-async def test_create_review_non_participant_forbidden(
+async def test_create_review_with_irrelevant_match_id_still_succeeds(
     client: AsyncClient, db_session: AsyncSession
 ):
-    """Non-participant should not be able to leave a review."""
+    """Review creation should not depend on participation in any provided match."""
     host, _ = await make_user(db_session, "rev_nonp_h@example.com")
     player, _ = await make_user(db_session, "rev_nonp_p@example.com")
     outsider, outsider_token = await make_user(db_session, "rev_nonp_out@example.com")
@@ -260,36 +255,32 @@ async def test_create_review_non_participant_forbidden(
         json={"match_id": str(match.id), "rating": 5},
         headers=auth(outsider_token),
     )
-    assert response.status_code == 403
+    assert response.status_code == 201
 
 
-async def test_create_review_reviewee_not_in_match(
+async def test_create_review_with_non_participating_reviewee_still_succeeds(
     client: AsyncClient, db_session: AsyncSession
 ):
-    """Cannot review someone who didn't participate in the match."""
+    """Review creation should not require the reviewee to be in any provided match."""
     host, host_token = await make_user(db_session, "rev_notinmatch_h@example.com")
     other, _ = await make_user(db_session, "rev_notinmatch_o@example.com")
 
     match = await make_match_with_status(db_session, host, MatchStatus.COMPLETED)
-    # 'other' never joined the match
 
     response = await client.post(
         f"/api/v1/users/{other.id}/reviews",
         json={"match_id": str(match.id), "rating": 3},
         headers=auth(host_token),
     )
-    assert response.status_code == 400
+    assert response.status_code == 201
 
 
 async def test_create_review_duplicate_rejected(client: AsyncClient, db_session: AsyncSession):
-    """Submitting a second review for the same player in the same match should return 409."""
+    """Submitting a second review for the same user should return 409."""
     host, host_token = await make_user(db_session, "rev_dup_h@example.com")
     player, _ = await make_user(db_session, "rev_dup_p@example.com")
 
-    match = await make_match_with_status(db_session, host, MatchStatus.COMPLETED)
-    await add_player_to_match(db_session, match.id, player.id)
-
-    payload = {"match_id": str(match.id), "rating": 5}
+    payload = {"rating": 5}
 
     first = await client.post(
         f"/api/v1/users/{player.id}/reviews",
@@ -302,30 +293,6 @@ async def test_create_review_duplicate_rejected(client: AsyncClient, db_session:
         f"/api/v1/users/{player.id}/reviews",
         json=payload,
         headers=auth(host_token),
-    )
-    assert second.status_code == 409
-
-
-async def test_create_profile_review_duplicate_rejected(
-    client: AsyncClient, db_session: AsyncSession
-):
-    """Submitting a second profile review for the same user should return 409."""
-    reviewer, reviewer_token = await make_user(db_session, "profile_dup_h@example.com")
-    reviewee, _ = await make_user(db_session, "profile_dup_p@example.com")
-
-    payload = {"rating": 5, "comment": "Great profile review"}
-
-    first = await client.post(
-        f"/api/v1/users/{reviewee.id}/reviews",
-        json=payload,
-        headers=auth(reviewer_token),
-    )
-    assert first.status_code == 201
-
-    second = await client.post(
-        f"/api/v1/users/{reviewee.id}/reviews",
-        json=payload,
-        headers=auth(reviewer_token),
     )
     assert second.status_code == 409
 
@@ -335,12 +302,9 @@ async def test_review_visible_on_public_profile(client: AsyncClient, db_session:
     host, host_token = await make_user(db_session, "rev_vis_h@example.com", "Visible Host")
     player, player_token = await make_user(db_session, "rev_vis_p@example.com", "Visible Player")
 
-    match = await make_match_with_status(db_session, host, MatchStatus.COMPLETED)
-    await add_player_to_match(db_session, match.id, player.id)
-
     await client.post(
         f"/api/v1/users/{player.id}/reviews",
-        json={"match_id": str(match.id), "rating": 4, "comment": "Good match!"},
+        json={"rating": 4, "comment": "Good match!"},
         headers=auth(host_token),
     )
 
@@ -364,7 +328,6 @@ async def test_review_comment_too_long(client: AsyncClient, db_session: AsyncSes
     response = await client.post(
         f"/api/v1/users/{other.id}/reviews",
         json={
-            "match_id": str(uuid.uuid4()),
             "rating": 3,
             "comment": "x" * 501,
         },
