@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from app.models.enums import SkillLevel, SportType, UserStatus
 from app.schemas.review import UserSummaryResponse, ReviewResponse
 
@@ -15,6 +15,24 @@ class UserSportResponse(BaseModel):
 class UserSportRequest(BaseModel):
     sport: SportType
     skill_level: SkillLevel
+
+    @field_validator("sport", mode="before")
+    @classmethod
+    def normalize_sport(cls, value):
+        if isinstance(value, str):
+            normalized = value.strip()
+            if normalized in SportType.__members__:
+                return SportType[normalized]
+        return value
+
+    @field_validator("skill_level", mode="before")
+    @classmethod
+    def normalize_skill_level(cls, value):
+        if isinstance(value, str):
+            normalized = value.strip()
+            if normalized in SkillLevel.__members__:
+                return SkillLevel[normalized]
+        return value
 
 
 # ─── Nested Response Models ───────────────────────────────────────────────────
@@ -74,6 +92,8 @@ class UserResponse(BaseModel):
     avatar_url: str | None
     is_admin: bool
     status: UserStatus
+    avg_rating: float = 0.0
+    total_games_played: int = 0
     sports: list[UserSportResponse]
     total_reviews: int = 0
     reviews: list[ReviewResponse] = []
@@ -100,6 +120,8 @@ class UserProfileResponse(BaseModel):
     location: str | None
     avatar_url: str | None
     is_admin: bool
+    avg_rating: float = 0.0
+    total_games_played: int = 0
     total_reviews: int
     reviews: list[ReviewResponse]
     sports: list[UserSportResponse]
@@ -136,6 +158,7 @@ class UpdateProfileResponse(BaseModel):
     full_name: str
     bio: str | None
     avatar_url: str | None
+    location: str | None = None
     sports: list[UserSportResponse]
     updated_at: datetime
     model_config = {"from_attributes": True}
@@ -154,4 +177,5 @@ class UpdateProfileRequest(BaseModel):
     """
     full_name: str | None = Field(None, max_length=100)
     bio: str | None = Field(None, max_length=500)
+    location: str | None = Field(None, max_length=100)
     sports: list[UserSportRequest] | None = None
