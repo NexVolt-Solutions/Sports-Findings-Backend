@@ -113,7 +113,7 @@ async def create_review(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Create a review for a user after a match."""
+    """Create a review for a user, optionally tied to a completed match."""
     from app.services.review_service import create_review as svc_create_review
     return await svc_create_review(
         user_id, payload, current_user, db, background_tasks

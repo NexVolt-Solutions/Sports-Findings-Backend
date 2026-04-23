@@ -143,6 +143,25 @@ async def test_create_review_no_comment(client: AsyncClient, db_session: AsyncSe
     assert response.json()["comment"] is None
 
 
+async def test_create_profile_review_without_match_id(
+    client: AsyncClient, db_session: AsyncSession
+):
+    """Profile reviews should be accepted without forcing a match selection."""
+    reviewer, reviewer_token = await make_user(db_session, "profile_review_h@example.com")
+    reviewee, _ = await make_user(db_session, "profile_review_p@example.com")
+
+    response = await client.post(
+        f"/api/v1/users/{reviewee.id}/reviews",
+        json={"rating": 5, "comment": "Excellent sportsmanship."},
+        headers=auth(reviewer_token),
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["rating"] == 5
+    assert data["comment"] == "Excellent sportsmanship."
+    assert data["reviewer"]["id"] == str(reviewer.id)
+
+
 async def test_create_review_invalid_rating_above_5(client: AsyncClient, db_session: AsyncSession):
     """Rating above 5 should fail validation."""
     _, token = await make_user(db_session, "rev_high@example.com")
@@ -283,6 +302,30 @@ async def test_create_review_duplicate_rejected(client: AsyncClient, db_session:
         f"/api/v1/users/{player.id}/reviews",
         json=payload,
         headers=auth(host_token),
+    )
+    assert second.status_code == 409
+
+
+async def test_create_profile_review_duplicate_rejected(
+    client: AsyncClient, db_session: AsyncSession
+):
+    """Submitting a second profile review for the same user should return 409."""
+    reviewer, reviewer_token = await make_user(db_session, "profile_dup_h@example.com")
+    reviewee, _ = await make_user(db_session, "profile_dup_p@example.com")
+
+    payload = {"rating": 5, "comment": "Great profile review"}
+
+    first = await client.post(
+        f"/api/v1/users/{reviewee.id}/reviews",
+        json=payload,
+        headers=auth(reviewer_token),
+    )
+    assert first.status_code == 201
+
+    second = await client.post(
+        f"/api/v1/users/{reviewee.id}/reviews",
+        json=payload,
+        headers=auth(reviewer_token),
     )
     assert second.status_code == 409
 

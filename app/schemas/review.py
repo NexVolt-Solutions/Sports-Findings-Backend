@@ -16,7 +16,7 @@ class UserSummaryResponse(BaseModel):
 
 
 class CreateReviewRequest(BaseModel):
-    match_id: uuid.UUID
+    match_id: uuid.UUID | None = None
     rating: int
     comment: str | None = None
 
