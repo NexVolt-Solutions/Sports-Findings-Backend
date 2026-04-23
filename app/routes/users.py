@@ -2,6 +2,8 @@ import json
 import uuid
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, UploadFile
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 from starlette.datastructures import UploadFile as StarletteUploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -57,31 +59,44 @@ async def _parse_update_profile_request(
 ) -> tuple[UpdateProfileRequest, UploadFile | None]:
     content_type = request.headers.get("content-type", "").lower()
 
-    if "multipart/form-data" not in content_type:
-        raise bad_request("Unsupported content type. Use multipart/form-data.")
+    try:
+        if "application/json" in content_type:
+            payload = UpdateProfileRequest.model_validate(await request.json())
+            return payload, None
 
-    form = await request.form()
-    sports_raw = _read_optional_form_value(form, "sports")
-    sports = None
+        if (
+            "multipart/form-data" not in content_type
+            and "application/x-www-form-urlencoded" not in content_type
+        ):
+            raise bad_request(
+                "Unsupported content type. Use application/json, multipart/form-data, or form-urlencoded."
+            )
 
-    if sports_raw is not None:
-        try:
-            sports = json.loads(sports_raw) if sports_raw else []
-        except json.JSONDecodeError as exc:
-            raise bad_request("Invalid sports payload. Expected JSON array.") from exc
+        form = await request.form()
+        sports_raw = _read_optional_form_value(form, "sports")
+        sports = None
 
-    payload = UpdateProfileRequest.model_validate(
-        {
-            "full_name": _read_optional_form_value(form, "full_name"),
-            "bio": _read_optional_form_value(form, "bio"),
-            "sports": sports,
-        }
-    )
+        if sports_raw is not None:
+            try:
+                sports = json.loads(sports_raw) if sports_raw else []
+            except json.JSONDecodeError as exc:
+                raise bad_request("Invalid sports payload. Expected JSON array.") from exc
 
-    avatar = form.get("avatar")
-    if isinstance(avatar, (UploadFile, StarletteUploadFile)):
-        return payload, avatar
-    return payload, None
+        payload = UpdateProfileRequest.model_validate(
+            {
+                "full_name": _read_optional_form_value(form, "full_name"),
+                "bio": _read_optional_form_value(form, "bio"),
+                "location": _read_optional_form_value(form, "location"),
+                "sports": sports,
+            }
+        )
+
+        avatar = form.get("avatar")
+        if isinstance(avatar, (UploadFile, StarletteUploadFile)):
+            return payload, avatar
+        return payload, None
+    except ValidationError as exc:
+        raise RequestValidationError(exc.errors()) from exc
 
 
 @router.put("/me", response_model=UpdateProfileResponse)
@@ -90,7 +105,7 @@ async def update_my_profile(
     current_user: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Update the authenticated user's profile using multipart/form-data."""
+    """Update the authenticated user's profile using JSON or multipart/form-data."""
     payload, avatar_file = await _parse_update_profile_request(request)
     return await user_service.update_profile(current_user, payload, db, avatar_file)
 

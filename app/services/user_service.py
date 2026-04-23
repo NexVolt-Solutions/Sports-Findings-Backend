@@ -123,6 +123,8 @@ async def get_my_profile(user: User, db: AsyncSession) -> UserResponse:
         avatar_url=user_with_sports.avatar_url,
         is_admin=user_with_sports.is_admin,
         status=user_with_sports.status,
+        avg_rating=round(user_with_sports.avg_rating, 1),
+        total_games_played=user_with_sports.total_games_played,
         sports=[UserSportResponse.model_validate(s) for s in user_with_sports.sports],
         total_reviews=total_reviews,
         reviews=[ReviewResponse.model_validate(r) for r in reviews],
@@ -168,6 +170,9 @@ async def update_profile(
     if payload.bio is not None:
         user.bio = payload.bio.strip()
 
+    if payload.location is not None:
+        user.location = payload.location.strip()
+
     if avatar_file is not None:
         user.avatar_url = await save_avatar_upload(str(user.id), avatar_file)
 
@@ -204,6 +209,7 @@ async def update_profile(
         full_name=updated_user.full_name,
         bio=updated_user.bio,
         avatar_url=updated_user.avatar_url,
+        location=updated_user.location,
         sports=[UserSportResponse.model_validate(s) for s in updated_user.sports],
         updated_at=datetime.now(timezone.utc),
     )
@@ -262,6 +268,8 @@ async def get_user_profile(
         location=target.location,
         avatar_url=target.avatar_url,
         is_admin=target.is_admin,
+        avg_rating=round(target.avg_rating, 1),
+        total_games_played=target.total_games_played,
         total_reviews=total_reviews,
         reviews=[ReviewResponse.model_validate(r) for r in reviews],
         sports=[UserSportResponse.model_validate(s) for s in target.sports],
@@ -269,6 +277,7 @@ async def get_user_profile(
             followers=followers_count,
             following=following_count,
             rating=round(target.avg_rating, 1),
+            matches=target.total_games_played,
         ),
         actions=UserActionsResponse(
             can_follow=not is_own_profile,

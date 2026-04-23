@@ -103,8 +103,8 @@ async def test_update_profile_sports(client: AsyncClient, db_session: AsyncSessi
     sports = response.json()["sports"]
     assert len(sports) == 2
     sport_names = [s["sport"] for s in sports]
-    assert "BASKETBALL" in sport_names
-    assert "FOOTBALL" in sport_names
+    assert "Basketball" in sport_names
+    assert "Football" in sport_names
 
 
 async def test_update_bio(client: AsyncClient, db_session: AsyncSession):
@@ -141,6 +141,9 @@ async def test_update_profile_with_avatar_in_single_request(client: AsyncClient,
 async def test_get_other_user_profile(client: AsyncClient, db_session: AsyncSession):
     viewer, viewer_token = await create_active_user(db_session, "viewer@example.com", "Viewer")
     target, _ = await create_active_user(db_session, "target@example.com", "Target User")
+    target.total_games_played = 9
+    target.avg_rating = 4.2
+    await db_session.commit()
 
     response = await client.get(
         f"/api/v1/users/{target.id}",
@@ -151,6 +154,9 @@ async def test_get_other_user_profile(client: AsyncClient, db_session: AsyncSess
     assert data["full_name"] == "Target User"
     assert "total_games_played" in data
     assert "avg_rating" in data
+    assert data["total_games_played"] == 9
+    assert data["avg_rating"] == 4.2
+    assert data["stats"]["matches"] == 9
     assert "total_reviews" in data
     assert "reviews" in data
     assert isinstance(data["reviews"], list)
@@ -230,15 +236,24 @@ async def test_unfollow_not_following_should_fail(client: AsyncClient, db_sessio
     assert response.status_code == 400
 
 
-async def test_update_profile_rejects_json_format(client: AsyncClient, db_session: AsyncSession):
+async def test_update_profile_accepts_json_format(client: AsyncClient, db_session: AsyncSession):
     user, token = await create_active_user(db_session, "json@example.com", "JSON User")
     response = await client.put(
         "/api/v1/users/me",
-        json={"full_name": "New Name"},
+        json={
+            "full_name": "New Name",
+            "location": "Peshawar Sports Complex",
+            "sports": [
+                {"sport": "BASKETBALL", "skill_level": "INTERMEDIATE"},
+                {"sport": "FOOTBALL", "skill_level": "BEGINNER"},
+            ],
+        },
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert response.status_code == 400
-    assert "Unsupported content type" in response.json()["detail"]
+    assert response.status_code == 200
+    assert response.json()["full_name"] == "New Name"
+    assert response.json()["location"] == "Peshawar Sports Complex"
+    assert len(response.json()["sports"]) == 2
 
 
 async def test_update_profile_field_validation(client: AsyncClient, db_session: AsyncSession):
