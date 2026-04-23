@@ -1,6 +1,11 @@
 from functools import lru_cache
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+SPORTFINDING_GOOGLE_WEB_CLIENT_ID = (
+    "147032468406-cj792ti9lqaldlonhl93p04vuui6rufv.apps.googleusercontent.com"
+)
 
 
 class Settings(BaseSettings):
@@ -23,7 +28,22 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 15
     refresh_token_expire_days: int = 30
 
-    google_client_id: str = ""
+    google_client_id: str = Field(
+        default=SPORTFINDING_GOOGLE_WEB_CLIENT_ID,
+        validation_alias=AliasChoices(
+            "GOOGLE_CLIENT_ID",
+            "GOOGLE_OAUTH_CLIENT_ID",
+            "GOOGLE_AUDIENCE",
+            "AUDIENCE",
+        ),
+    )
+    google_allowed_client_ids: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "GOOGLE_ALLOWED_CLIENT_IDS",
+            "GOOGLE_OAUTH_ALLOWED_CLIENT_IDS",
+        ),
+    )
     google_client_secret: str = ""
 
     google_maps_api_key: str = ""
@@ -63,6 +83,23 @@ class Settings(BaseSettings):
     max_page_size: int = 100
 
     allow_secret_logging: bool = False
+
+    @property
+    def accepted_google_client_ids(self) -> tuple[str, ...]:
+        values: list[str] = []
+
+        if self.google_client_id.strip():
+            values.append(self.google_client_id.strip())
+
+        if self.google_allowed_client_ids.strip():
+            values.extend(
+                client_id.strip()
+                for client_id in self.google_allowed_client_ids.split(",")
+                if client_id.strip()
+            )
+
+        # Preserve order while removing duplicates.
+        return tuple(dict.fromkeys(values))
 
 
 @lru_cache()

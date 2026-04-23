@@ -1,10 +1,14 @@
 """Auth tests."""
 
+from types import SimpleNamespace
+
 from httpx import AsyncClient
 from sqlalchemy import select
 
+from app.config import Settings, settings
 from app.models.enums import UserStatus
 from app.models.user import User
+from app.services import auth_service
 
 
 def register_payload(
@@ -483,3 +487,160 @@ async def test_health_check(client: AsyncClient):
     response = await client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "healthy"
+
+
+async def test_google_auth_accepts_id_token_alias_and_creates_user(
+    client: AsyncClient,
+    db_session,
+    monkeypatch,
+):
+    async def fake_verify_google_token(_: str) -> dict:
+        return {
+            "sub": "google-user-123",
+            "email": "google-user@example.com",
+            "name": "Google User",
+            "picture": "https://example.com/avatar.png",
+        }
+
+    monkeypatch.setattr(auth_service, "_verify_google_token", fake_verify_google_token)
+
+    response = await client.post(
+        "/api/v1/auth/google",
+        json={"idToken": "frontend-id-token"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["access_token"]
+
+    result = await db_session.execute(
+        select(User).where(User.email == "google-user@example.com")
+    )
+    user = result.scalar_one()
+    assert user.google_id == "google-user-123"
+    assert user.status == UserStatus.ACTIVE
+
+
+async def test_google_auth_rejects_audience_mismatch(
+    client: AsyncClient,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        settings,
+        "google_client_id",
+        "147032468406-cj792ti9lqaldlonhl93p04vuui6rufv.apps.googleusercontent.com",
+    )
+    monkeypatch.setattr(settings, "google_allowed_client_ids", "")
+
+    async def fake_get(self, url: str, params: dict) -> SimpleNamespace:
+        return SimpleNamespace(
+            status_code=200,
+            json=lambda: {
+                "aud": "wrong-client-id.apps.googleusercontent.com",
+                "azp": "wrong-client-id.apps.googleusercontent.com",
+                "iss": "https://accounts.google.com",
+                "sub": "google-user-456",
+                "email": "mismatch@example.com",
+                "email_verified": "true",
+                "name": "Mismatch User",
+            },
+        )
+
+    monkeypatch.setattr(auth_service.httpx.AsyncClient, "get", fake_get)
+
+    response = await client.post(
+        "/api/v1/auth/google",
+        json={"id_token": "frontend-id-token"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Google token audience mismatch"
+
+
+async def test_google_auth_accepts_configured_allowed_client_id(
+    client: AsyncClient,
+    monkeypatch,
+):
+    monkeypatch.setattr(settings, "google_client_id", "primary-client-id.apps.googleusercontent.com")
+    monkeypatch.setattr(
+        settings,
+        "google_allowed_client_ids",
+        "secondary-client-id.apps.googleusercontent.com, tertiary-client-id.apps.googleusercontent.com",
+    )
+
+    async def fake_get(self, url: str, params: dict) -> SimpleNamespace:
+        return SimpleNamespace(
+            status_code=200,
+            json=lambda: {
+                "aud": "secondary-client-id.apps.googleusercontent.com",
+                "azp": "secondary-client-id.apps.googleusercontent.com",
+                "iss": "https://accounts.google.com",
+                "sub": "google-user-789",
+                "email": "allowed@example.com",
+                "email_verified": "true",
+                "name": "Allowed User",
+            },
+        )
+
+    monkeypatch.setattr(auth_service.httpx.AsyncClient, "get", fake_get)
+
+    response = await client.post(
+        "/api/v1/auth/google",
+        json={"id_token": "frontend-id-token"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["access_token"]
+
+
+async def test_google_auth_rejects_unverified_google_email(
+    client: AsyncClient,
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        settings,
+        "google_client_id",
+        "147032468406-cj792ti9lqaldlonhl93p04vuui6rufv.apps.googleusercontent.com",
+    )
+    monkeypatch.setattr(settings, "google_allowed_client_ids", "")
+
+    async def fake_get(self, url: str, params: dict) -> SimpleNamespace:
+        return SimpleNamespace(
+            status_code=200,
+            json=lambda: {
+                "aud": "147032468406-cj792ti9lqaldlonhl93p04vuui6rufv.apps.googleusercontent.com",
+                "azp": "147032468406-cj792ti9lqaldlonhl93p04vuui6rufv.apps.googleusercontent.com",
+                "iss": "https://accounts.google.com",
+                "sub": "google-user-999",
+                "email": "unverified@example.com",
+                "email_verified": "false",
+                "name": "Unverified User",
+            },
+        )
+
+    monkeypatch.setattr(auth_service.httpx.AsyncClient, "get", fake_get)
+
+    response = await client.post(
+        "/api/v1/auth/google",
+        json={"id_token": "frontend-id-token"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Google account email is not verified"
+
+
+def test_google_settings_default_to_frontend_web_client_id():
+    assert settings.accepted_google_client_ids == (
+        "147032468406-cj792ti9lqaldlonhl93p04vuui6rufv.apps.googleusercontent.com",
+    )
+
+
+def test_google_settings_accept_audience_aliases(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "sqlite+aiosqlite:///./test.db")
+    monkeypatch.setenv("SECRET_KEY", "test-secret-key")
+    monkeypatch.setenv("AUDIENCE", "alias-client-id.apps.googleusercontent.com")
+
+    alias_settings = Settings(_env_file=None)
+
+    assert alias_settings.accepted_google_client_ids == (
+        "alias-client-id.apps.googleusercontent.com",
+    )

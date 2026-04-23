@@ -42,12 +42,24 @@ from app.background.tasks import (
 logger = logging.getLogger(__name__)
 
 GOOGLE_TOKEN_INFO_URL = "https://oauth2.googleapis.com/tokeninfo"
+GOOGLE_VALID_ISSUERS = {
+    "accounts.google.com",
+    "https://accounts.google.com",
+}
 EMAIL_OTP_EXPIRE_MINUTES = 2
 PASSWORD_RESET_OTP_EXPIRE_MINUTES = 2
 
 
 def _normalize_email(email: str) -> str:
     return email.strip().lower()
+
+
+def _google_claim_is_truthy(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() == "true"
+    return False
 
 
 def _generate_otp(expire_minutes: int) -> tuple[str, datetime]:
@@ -510,8 +522,47 @@ async def _verify_google_token(id_token: str) -> dict:
 
         data = response.json()
 
-        if settings.google_client_id and data.get("aud") != settings.google_client_id:
+        accepted_audiences = settings.accepted_google_client_ids
+        token_audience = (data.get("aud") or "").strip()
+        authorized_party = (data.get("azp") or "").strip()
+        token_issuer = (data.get("iss") or "").strip()
+        token_subject = (data.get("sub") or "").strip()
+
+        if accepted_audiences and token_audience not in accepted_audiences:
+            logger.warning(
+                "Google token audience mismatch: aud=%s azp=%s expected=%s",
+                token_audience or "<missing>",
+                authorized_party or "<missing>",
+                accepted_audiences,
+            )
             raise bad_request("Google token audience mismatch")
+
+        if token_issuer and token_issuer not in GOOGLE_VALID_ISSUERS:
+            logger.warning(
+                "Google token issuer mismatch: iss=%s aud=%s azp=%s sub=%s",
+                token_issuer,
+                token_audience or "<missing>",
+                authorized_party or "<missing>",
+                token_subject or "<missing>",
+            )
+            raise bad_request("Invalid Google token issuer")
+
+        if data.get("email") and not _google_claim_is_truthy(data.get("email_verified")):
+            logger.warning(
+                "Google token email not verified: aud=%s azp=%s sub=%s",
+                token_audience or "<missing>",
+                authorized_party or "<missing>",
+                token_subject or "<missing>",
+            )
+            raise bad_request("Google account email is not verified")
+
+        logger.info(
+            "Verified Google token: aud=%s azp=%s iss=%s sub=%s",
+            token_audience or "<missing>",
+            authorized_party or "<missing>",
+            token_issuer or "<missing>",
+            token_subject or "<missing>",
+        )
 
         return data
 

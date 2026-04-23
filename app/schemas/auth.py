@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, field_validator, model_validator
+from pydantic import AliasChoices, BaseModel, EmailStr, Field, field_validator, model_validator
 import re
 
 
@@ -45,7 +45,10 @@ class LoginRequest(BaseModel):
 
 class GoogleAuthRequest(BaseModel):
     """Google ID token received from the mobile Google Sign-In SDK."""
-    id_token: str
+    id_token: str = Field(
+        validation_alias=AliasChoices("id_token", "idToken"),
+        serialization_alias="id_token",
+    )
 
 
 class TokenResponse(BaseModel):
