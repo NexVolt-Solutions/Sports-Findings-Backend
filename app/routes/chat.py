@@ -14,7 +14,7 @@ from app.dependencies.auth import get_current_active_user, get_ws_user
 from app.models.user import User
 from app.schemas.message import ChatMessageResponse as MessageResponse
 from app.schemas.common import PaginatedResponse, MessageResponse as MsgResp
-from app.schemas.message import ChatMessageResponse
+from app.schemas.message import ChatMessageResponse, WSMessageOutbound
 from app.utils.pagination import PaginationParams
 from app.services import chat_service
 from app.websockets.connection_manager import ws_manager
@@ -42,6 +42,24 @@ async def _allow_chat_message(user_id: str) -> bool:
             return False
         q.append(now)
         return True
+
+
+def _build_chat_broadcast_payload(
+    *,
+    message_id: uuid.UUID,
+    user: User,
+    content: str,
+    sent_at: datetime,
+) -> dict:
+    payload = WSMessageOutbound(
+        message_id=str(message_id),
+        sender_id=str(user.id),
+        sender_name=user.full_name,
+        sender_avatar=user.avatar_url,
+        content=content,
+        sent_at=sent_at.isoformat(),
+    )
+    return payload.model_dump()
 
 # REST router — registered under /api/v1 in main.py
 router = APIRouter(tags=["Chat"])
@@ -204,16 +222,15 @@ async def match_chat_websocket(
                 continue
 
             sent_at = datetime.now(timezone.utc)
+            message_id = uuid.uuid4()
 
             # Build outbound broadcast payload
-            outbound = {
-                "type":          "chat_message",
-                "sender_id":     str(user.id),
-                "sender_name":   user.full_name,
-                "sender_avatar": user.avatar_url,
-                "content":       content,
-                "sent_at":       sent_at.isoformat(),
-            }
+            outbound = _build_chat_broadcast_payload(
+                message_id=message_id,
+                user=user,
+                content=content,
+                sent_at=sent_at,
+            )
 
             # Broadcast to all clients in this match room
             await ws_manager.broadcast_to_match(room_id, outbound)
@@ -222,6 +239,7 @@ async def match_chat_websocket(
             # The broadcast happens first — persistence is best-effort
             asyncio.create_task(
                 persist_chat_message(
+                    message_id=message_id,
                     match_id=match_id,
                     sender_id=user.id,
                     content=content,
