@@ -2,8 +2,10 @@
 
 from types import SimpleNamespace
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app.config import Settings, settings
 from app.models.enums import UserStatus
@@ -644,3 +646,38 @@ def test_google_settings_accept_audience_aliases(monkeypatch):
     assert alias_settings.accepted_google_client_ids == (
         "alias-client-id.apps.googleusercontent.com",
     )
+
+
+async def test_user_email_is_normalized_to_lowercase_on_write(db_session):
+    user = User(
+        email="  MixedCase@Example.COM  ",
+        full_name="Normalize Email",
+        hashed_password="hashed",
+        status=UserStatus.ACTIVE,
+    )
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+
+    assert user.email == "mixedcase@example.com"
+
+
+async def test_user_email_case_insensitive_uniqueness_enforced(db_session):
+    first = User(
+        email="duplicate@example.com",
+        full_name="First User",
+        hashed_password="hashed",
+        status=UserStatus.ACTIVE,
+    )
+    second = User(
+        email="DUPLICATE@example.com",
+        full_name="Second User",
+        hashed_password="hashed",
+        status=UserStatus.ACTIVE,
+    )
+    db_session.add(first)
+    await db_session.commit()
+
+    db_session.add(second)
+    with pytest.raises(IntegrityError):
+        await db_session.commit()

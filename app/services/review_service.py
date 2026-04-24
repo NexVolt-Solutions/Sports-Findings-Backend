@@ -3,7 +3,7 @@ import logging
 
 from fastapi import BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select
 
 from app.models.review import Review
 from app.models.user import User
@@ -12,7 +12,6 @@ from app.schemas.user import UserSummaryResponse
 from app.utils.exceptions import (
     UserNotFound,
     bad_request,
-    conflict,
 )
 from app.background.tasks import update_user_avg_rating
 
@@ -31,7 +30,7 @@ async def create_review(
     Rules:
     - Cannot review yourself
     - Reviews are not tied to matches
-    - One profile review per reviewer per reviewee
+    - Multiple reviews are allowed
     """
     if reviewee_id == reviewer.id:
         raise bad_request("You cannot review yourself.")
@@ -40,20 +39,6 @@ async def create_review(
     reviewee = reviewee_result.scalar_one_or_none()
     if not reviewee:
         raise UserNotFound()
-
-    existing_review = await db.execute(
-        select(Review).where(
-            and_(
-                Review.reviewer_id == reviewer.id,
-                Review.reviewee_id == reviewee_id,
-                Review.match_id.is_(None),
-            )
-        )
-    )
-    if existing_review.scalar_one_or_none():
-        raise conflict(
-            "You have already submitted a profile review for this user."
-        )
 
     review = Review(
         reviewer_id=reviewer.id,
