@@ -276,7 +276,7 @@ async def test_create_review_with_non_participating_reviewee_still_succeeds(
 
 
 async def test_create_review_duplicate_rejected(client: AsyncClient, db_session: AsyncSession):
-    """Submitting a second review for the same user should return 409."""
+    """Submitting repeated reviews for the same user should be allowed."""
     host, host_token = await make_user(db_session, "rev_dup_h@example.com")
     player, _ = await make_user(db_session, "rev_dup_p@example.com")
 
@@ -294,7 +294,7 @@ async def test_create_review_duplicate_rejected(client: AsyncClient, db_session:
         json=payload,
         headers=auth(host_token),
     )
-    assert second.status_code == 409
+    assert second.status_code == 201
 
 
 async def test_review_visible_on_public_profile(client: AsyncClient, db_session: AsyncSession):

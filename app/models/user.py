@@ -8,11 +8,13 @@ from sqlalchemy import (
     Enum as SAEnum,
     CheckConstraint,
     UniqueConstraint,
+    Index,
     text,
     DateTime,
+    func,
 )
 from datetime import datetime
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
 from sqlalchemy.dialects.postgresql import UUID
 from app.database import Base
 from app.models.base import UUIDMixin, TimestampMixin
@@ -21,11 +23,6 @@ from app.models.enums import UserStatus, SportType, SkillLevel
 
 class User(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "users"
-    __table_args__ = (
-        CheckConstraint("avg_rating >= 0 AND avg_rating <= 5", name="ck_users_avg_rating_range"),
-        CheckConstraint("total_games_played >= 0", name="ck_users_total_games_played_non_negative"),
-        CheckConstraint("length(btrim(full_name)) >= 2", name="ck_users_full_name_not_blank"),
-    )
 
     # ─── Identity ─────────────────────────────────────────────────────────────
     email: Mapped[str] = mapped_column(
@@ -126,6 +123,17 @@ class User(UUIDMixin, TimestampMixin, Base):
     following: Mapped[list["Follow"]] = relationship(
         "Follow", back_populates="follower_user", foreign_keys="Follow.follower_id"
     )
+
+    __table_args__ = (
+        CheckConstraint("avg_rating >= 0 AND avg_rating <= 5", name="ck_users_avg_rating_range"),
+        CheckConstraint("total_games_played >= 0", name="ck_users_total_games_played_non_negative"),
+        CheckConstraint("length(btrim(full_name)) >= 2", name="ck_users_full_name_not_blank"),
+        Index("uq_users_email_lower", func.lower(email), unique=True),
+    )
+
+    @validates("email")
+    def normalize_email(self, key: str, value: str) -> str:
+        return value.strip().lower()
 
     def __repr__(self) -> str:
         return f"<User id={self.id} email={self.email}>"
