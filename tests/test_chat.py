@@ -26,6 +26,8 @@ from app.models.enums import (
     MatchStatus, MatchPlayerRole, MatchPlayerStatus,
     NotificationType,
 )
+from app.routes.chat import _build_chat_broadcast_payload
+from app.routes.notifications import _extract_ws_token
 from app.utils.security import create_access_token, hash_password
 
 
@@ -134,6 +136,11 @@ async def add_notification(
     await db.commit()
     await db.refresh(notif)
     return notif
+
+
+class _FakeWebSocket:
+    def __init__(self, headers: dict[str, str] | None = None):
+        self.headers = headers or {}
 
 
 # ─── Chat History Tests ───────────────────────────────────────────────────────
@@ -505,3 +512,41 @@ async def test_join_match_creates_notification(client: AsyncClient, db_session: 
     assert notif_resp.status_code == 200
     types = [n["type"] for n in notif_resp.json()["items"]]
     assert "match_joined" in types, f"Expected match_joined in {types}"
+
+
+def test_notification_ws_prefers_authorization_header_token():
+    websocket = _FakeWebSocket(headers={"Authorization": "Bearer header-token"})
+    assert _extract_ws_token(websocket, "query-token") == "header-token"
+
+
+def test_notification_ws_allows_missing_query_token_when_header_present():
+    websocket = _FakeWebSocket(headers={"Authorization": "Bearer header-token"})
+    assert _extract_ws_token(websocket, None) == "header-token"
+
+
+def test_chat_broadcast_payload_includes_message_id():
+    user = type(
+        "UserStub",
+        (),
+        {
+            "id": uuid.uuid4(),
+            "full_name": "Socket Sender",
+            "avatar_url": None,
+        },
+    )()
+    message_id = uuid.uuid4()
+    sent_at = datetime.now(timezone.utc)
+
+    payload = _build_chat_broadcast_payload(
+        message_id=message_id,
+        user=user,
+        content="Hello socket",
+        sent_at=sent_at,
+    )
+
+    assert payload["type"] == "chat_message"
+    assert payload["message_id"] == str(message_id)
+    assert payload["sender_id"] == str(user.id)
+    assert payload["content"] == "Hello socket"
+    assert payload["sent_at"] == sent_at.isoformat()
+

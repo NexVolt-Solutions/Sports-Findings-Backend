@@ -39,7 +39,7 @@ async def _allow_notification_message(user_id: str) -> bool:
         return True
 
 
-def _extract_ws_token(websocket: WebSocket, token_query_param: str) -> str:
+def _extract_ws_token(websocket: WebSocket, token_query_param: str | None) -> str | None:
     auth_header = websocket.headers.get("Authorization")
     if auth_header and auth_header.lower().startswith("bearer "):
         return auth_header.split(" ", 1)[1].strip()
@@ -87,7 +87,10 @@ async def mark_all_notifications_read(
 @ws_router.websocket("/ws/notifications")
 async def notification_websocket(
     websocket: WebSocket,
-    token: str = Query(...),
+    token: str | None = Query(
+        None,
+        description="JWT access token (fallback; prefer Authorization header)",
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -97,6 +100,8 @@ async def notification_websocket(
     """
     try:
         token_value = _extract_ws_token(websocket, token)
+        if not token_value:
+            raise ValueError("Missing token")
         user = await get_ws_user(token_value, db)
     except Exception:
         await websocket.close(code=4001, reason="Unauthorized")

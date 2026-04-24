@@ -401,6 +401,7 @@ async def update_user_avg_rating(reviewee_id: UUID) -> None:
 
 
 async def persist_chat_message(
+    message_id: UUID,
     match_id: UUID,
     sender_id: UUID,
     content: str,
@@ -417,6 +418,7 @@ async def persist_chat_message(
 
         async with AsyncSessionLocal() as db:
             message = Message(
+                id=message_id,
                 match_id=match_id,
                 sender_id=sender_id,
                 content=content,
