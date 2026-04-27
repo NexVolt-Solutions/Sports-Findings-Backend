@@ -16,6 +16,8 @@ class UserSummaryResponse(BaseModel):
 
 
 class CreateReviewRequest(BaseModel):
+    # Kept for backward compatibility with older clients.
+    # The backend ignores this field and creates a plain profile review.
     match_id: uuid.UUID | None = None
     rating: int
     comment: str | None = None
