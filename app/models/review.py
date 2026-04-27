@@ -9,7 +9,8 @@ from app.models.base import UUIDMixin, TimestampMixin
 class Review(UUIDMixin, TimestampMixin, Base):
     __tablename__ = "reviews"
     __table_args__ = (
-        # A user can only review another user once per match
+        # Legacy match-era uniqueness rule. Current profile reviews are stored
+        # with match_id=NULL, so repeated profile reviews remain allowed.
         UniqueConstraint("reviewer_id", "reviewee_id", "match_id", name="uq_review_per_match"),
         # Rating must be between 1 and 5
         CheckConstraint("rating >= 1 AND rating <= 5", name="ck_rating_range"),
