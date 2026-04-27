@@ -54,6 +54,10 @@ Desktop.ini
 *.log
 logs/
 
+# ─── Runtime-generated uploads ──────────────────────────────────────────────────
+uploads/*
+!uploads/.gitkeep
+
 # ─── Testing & coverage ───────────────────────────────────────────────────────
 .pytest_cache/
 .coverage
