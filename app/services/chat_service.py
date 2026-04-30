@@ -3,18 +3,19 @@ import logging
 from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, or_
 from sqlalchemy.orm import selectinload
 
+from app.models.direct_message import DirectMessage
 from app.models.message import Message
 from app.models.match import Match
 from app.models.match_player import MatchPlayer
 from app.models.user import User
-from app.models.enums import MatchPlayerStatus, MatchStatus
+from app.models.enums import MatchPlayerStatus, UserStatus
 from app.schemas.message import ChatMessageResponse as MessageResponse
 from app.schemas.common import PaginatedResponse
 from app.utils.pagination import PaginationParams, paginate
-from app.utils.exceptions import MatchNotFound, forbidden, bad_request
+from app.utils.exceptions import MatchNotFound, UserNotFound, forbidden, bad_request
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +92,76 @@ async def get_chat_history(
         .options(selectinload(Message.sender))
         .where(Message.match_id == match_id)
         .order_by(Message.sent_at.desc())
+    )
+
+    paginated = await paginate(db, query, pagination)
+
+    items = [
+        MessageResponse(
+            id=msg.id,
+            sender_id=msg.sender_id,
+            sender_name=msg.sender.full_name,
+            sender_avatar=msg.sender.avatar_url,
+            content=msg.content,
+            sent_at=msg.sent_at,
+        )
+        for msg in paginated.items
+    ]
+
+    paginated.items = items
+    return paginated
+
+
+async def verify_direct_chat_target(
+    target_user_id: uuid.UUID,
+    current_user: User,
+    db: AsyncSession,
+) -> User:
+    """Validate that a direct-chat target exists and can be contacted."""
+    if target_user_id == current_user.id:
+        raise bad_request("You cannot start a direct chat with yourself.")
+
+    result = await db.execute(select(User).where(User.id == target_user_id))
+    target = result.scalar_one_or_none()
+    if not target:
+        raise UserNotFound()
+    if target.status != UserStatus.ACTIVE:
+        raise bad_request("Direct chat target is not available.")
+
+    return target
+
+
+async def get_direct_chat_history(
+    target_user_id: uuid.UUID,
+    current_user: User,
+    pagination: PaginationParams,
+    db: AsyncSession,
+) -> PaginatedResponse:
+    """
+    Fetch paginated direct-message history between two users.
+
+    - Sorted newest first
+    - Only returns messages exchanged between the current user and the target
+    - Includes sender name and avatar for each message
+    """
+    await verify_direct_chat_target(target_user_id, current_user, db)
+
+    query = (
+        select(DirectMessage)
+        .options(selectinload(DirectMessage.sender))
+        .where(
+            or_(
+                and_(
+                    DirectMessage.sender_id == current_user.id,
+                    DirectMessage.recipient_id == target_user_id,
+                ),
+                and_(
+                    DirectMessage.sender_id == target_user_id,
+                    DirectMessage.recipient_id == current_user.id,
+                ),
+            )
+        )
+        .order_by(DirectMessage.sent_at.desc())
     )
 
     paginated = await paginate(db, query, pagination)

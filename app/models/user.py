@@ -105,6 +105,16 @@ class User(UUIDMixin, TimestampMixin, Base):
     match_participations: Mapped[list["MatchPlayer"]] = relationship(
         "MatchPlayer", back_populates="user", cascade="all, delete-orphan"
     )
+    direct_messages_sent: Mapped[list["DirectMessage"]] = relationship(
+        "DirectMessage",
+        back_populates="sender",
+        foreign_keys="DirectMessage.sender_id",
+    )
+    direct_messages_received: Mapped[list["DirectMessage"]] = relationship(
+        "DirectMessage",
+        back_populates="recipient",
+        foreign_keys="DirectMessage.recipient_id",
+    )
     reviews_given: Mapped[list["Review"]] = relationship(
         "Review", back_populates="reviewer", foreign_keys="Review.reviewer_id"
     )
