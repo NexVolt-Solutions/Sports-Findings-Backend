@@ -150,6 +150,7 @@ app.include_router(options.router,       prefix=API_PREFIX)
 # WebSocket paths are clean, connection-level paths — no REST versioning.
 #
 #   WS  /ws/matches/{match_id}/chat    <- chat.ws_router
+#   WS  /ws/users/{user_id}/chat       <- chat.ws_router
 #   WS  /ws/notifications              <- notifications.ws_router
 
 app.include_router(chat.ws_router)

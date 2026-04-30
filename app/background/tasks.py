@@ -430,3 +430,35 @@ async def persist_chat_message(
     except Exception as e:
         logger.error(f"[TASK] persist_chat_message failed: {e}")
 
+
+async def persist_direct_chat_message(
+    message_id: UUID,
+    sender_id: UUID,
+    recipient_id: UUID,
+    content: str,
+    sent_at: str,
+) -> None:
+    """Persist a direct WebSocket chat message to the database."""
+    logger.info(
+        "[TASK] persist_direct_chat_message -> "
+        f"sender={sender_id} recipient={recipient_id}"
+    )
+    try:
+        from app.database import AsyncSessionLocal
+        from app.models.direct_message import DirectMessage
+        from datetime import datetime
+
+        async with AsyncSessionLocal() as db:
+            message = DirectMessage(
+                id=message_id,
+                sender_id=sender_id,
+                recipient_id=recipient_id,
+                content=content,
+                sent_at=datetime.fromisoformat(sent_at),
+            )
+            db.add(message)
+            await db.commit()
+
+    except Exception as e:
+        logger.error(f"[TASK] persist_direct_chat_message failed: {e}")
+

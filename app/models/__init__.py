@@ -6,6 +6,7 @@ from app.models.follow import Follow
 from app.models.match import Match
 from app.models.match_player import MatchPlayer
 from app.models.message import Message
+from app.models.direct_message import DirectMessage
 from app.models.review import Review
 from app.models.notification import Notification
 from app.models.content_page import ContentPage
@@ -18,6 +19,7 @@ __all__ = [
     "Match",
     "MatchPlayer",
     "Message",
+    "DirectMessage",
     "Review",
     "Notification",
     "ContentPage",

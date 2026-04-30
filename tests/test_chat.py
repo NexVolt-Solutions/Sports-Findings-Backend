@@ -17,6 +17,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
+from app.models.direct_message import DirectMessage
 from app.models.match import Match
 from app.models.match_player import MatchPlayer
 from app.models.message import Message
@@ -110,6 +111,25 @@ async def add_message(
     msg = Message(
         match_id=match_id,
         sender_id=sender_id,
+        content=content,
+        sent_at=sent_at or datetime.now(timezone.utc),
+    )
+    db.add(msg)
+    await db.commit()
+    await db.refresh(msg)
+    return msg
+
+
+async def add_direct_message(
+    db: AsyncSession,
+    sender_id: uuid.UUID,
+    recipient_id: uuid.UUID,
+    content: str,
+    sent_at: datetime | None = None,
+) -> DirectMessage:
+    msg = DirectMessage(
+        sender_id=sender_id,
+        recipient_id=recipient_id,
         content=content,
         sent_at=sent_at or datetime.now(timezone.utc),
     )
@@ -262,6 +282,113 @@ async def test_chat_history_nonexistent_match(client: AsyncClient, db_session: A
     response = await client.get(
         f"/api/v1/matches/{uuid.uuid4()}/messages",
         headers=auth(token),
+    )
+    assert response.status_code == 404
+
+
+async def test_direct_chat_history_returns_only_pair_messages(
+    client: AsyncClient,
+    db_session: AsyncSession,
+):
+    alice, alice_token = await make_user(db_session, "chat_dm_alice@example.com", "Alice")
+    bob, _ = await make_user(db_session, "chat_dm_bob@example.com", "Bob")
+    charlie, _ = await make_user(db_session, "chat_dm_charlie@example.com", "Charlie")
+
+    await add_direct_message(db_session, alice.id, bob.id, "Hi Bob")
+    await add_direct_message(db_session, bob.id, alice.id, "Hi Alice")
+    await add_direct_message(db_session, charlie.id, bob.id, "Private to Bob")
+
+    response = await client.get(
+        f"/api/v1/users/{bob.id}/messages",
+        headers=auth(alice_token),
+    )
+    assert response.status_code == 200
+
+    items = response.json()["items"]
+    contents = [item["content"] for item in items]
+    assert "Hi Bob" in contents
+    assert "Hi Alice" in contents
+    assert "Private to Bob" not in contents
+
+
+async def test_direct_chat_history_sorted_newest_first(
+    client: AsyncClient,
+    db_session: AsyncSession,
+):
+    alice, alice_token = await make_user(db_session, "chat_dm_sort_alice@example.com")
+    bob, _ = await make_user(db_session, "chat_dm_sort_bob@example.com")
+
+    t_base = datetime.now(timezone.utc)
+    await add_direct_message(
+        db_session,
+        alice.id,
+        bob.id,
+        "First",
+        sent_at=t_base - timedelta(minutes=10),
+    )
+    await add_direct_message(
+        db_session,
+        bob.id,
+        alice.id,
+        "Second",
+        sent_at=t_base - timedelta(minutes=5),
+    )
+    await add_direct_message(
+        db_session,
+        alice.id,
+        bob.id,
+        "Third",
+        sent_at=t_base,
+    )
+
+    response = await client.get(
+        f"/api/v1/users/{bob.id}/messages",
+        headers=auth(alice_token),
+    )
+    assert response.status_code == 200
+
+    items = response.json()["items"]
+    contents = [item["content"] for item in items]
+    assert contents.index("Third") < contents.index("Second") < contents.index("First")
+
+
+async def test_direct_chat_history_empty_for_new_conversation(
+    client: AsyncClient,
+    db_session: AsyncSession,
+):
+    alice, alice_token = await make_user(db_session, "chat_dm_empty_alice@example.com")
+    bob, _ = await make_user(db_session, "chat_dm_empty_bob@example.com")
+
+    response = await client.get(
+        f"/api/v1/users/{bob.id}/messages",
+        headers=auth(alice_token),
+    )
+    assert response.status_code == 200
+    assert response.json()["items"] == []
+
+
+async def test_direct_chat_history_self_forbidden(
+    client: AsyncClient,
+    db_session: AsyncSession,
+):
+    alice, alice_token = await make_user(db_session, "chat_dm_self@example.com")
+
+    response = await client.get(
+        f"/api/v1/users/{alice.id}/messages",
+        headers=auth(alice_token),
+    )
+    assert response.status_code == 400
+
+
+async def test_direct_chat_history_nonexistent_target_returns_404(
+    client: AsyncClient,
+    db_session: AsyncSession,
+):
+    alice, alice_token = await make_user(db_session, "chat_dm_missing@example.com")
+
+    response = await client.get(
+        f"/api/v1/users/{uuid.uuid4()}/messages",
+        headers=auth(alice_token),
     )
     assert response.status_code == 404
 
